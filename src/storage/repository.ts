@@ -12,7 +12,7 @@ import {
 } from '../types/domain';
 import { generateDeterministicSeedBundle } from './seed';
 
-const DB_NAME = 'televault_db';
+const DB_NAME = 'mountyourclouds_db';
 const DB_VERSION = 1;
 
 interface BlobRecord {
@@ -126,7 +126,7 @@ export class VaultRepository {
 
     try {
       if (typeof BroadcastChannel !== 'undefined') {
-        this.channel = new BroadcastChannel('televault');
+        this.channel = new BroadcastChannel('mountyourclouds');
         this.channel.onmessage = () => {
           for (const listener of this.changeListeners) {
             listener();

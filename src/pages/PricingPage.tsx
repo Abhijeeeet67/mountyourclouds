@@ -311,7 +311,7 @@ export function PricingPage() {
               <strong className="font-mono text-[#F3F4F6]">
                 {formatBytes(totalExternalAllocatedBytes)}
               </strong>{' '}
-              of raw storage capacity ({formatBytes(totalUsedBytes)} used). TeleVault never promises fake "unlimited storage" or "unlimited transfers"—your subscription tier governs connected cloud account slots, daily/monthly transfer orchestration bandwidth, and automation workflows.
+              of raw storage capacity ({formatBytes(totalUsedBytes)} used). MountYourClouds never promises fake "unlimited storage" or "unlimited transfers"—your subscription tier governs connected cloud account slots, daily/monthly transfer orchestration bandwidth, and automation workflows.
             </span>
           </div>
         </div>

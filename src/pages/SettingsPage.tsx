@@ -365,7 +365,7 @@ export function SettingsPage() {
           <div className="p-3 rounded bg-[#0E1017] border border-[#1E2230]">
             <p className="text-[#8A94A6] font-sans">Database Engine</p>
             <p className="text-[#F3F4F6] font-bold mt-1">
-              {usingMemoryFallback ? 'In-Memory Fallback' : 'IndexedDB (televault_db)'}
+              {usingMemoryFallback ? 'In-Memory Fallback' : 'IndexedDB (mountyourclouds_db)'}
             </p>
           </div>
           <div className="p-3 rounded bg-[#0E1017] border border-[#1E2230]">

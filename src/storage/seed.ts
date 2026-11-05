@@ -171,7 +171,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
       id: 'local-vault',
       kind: 'local',
       name: 'Local Browser Vault',
-      endpoint: 'idb://televault_db',
+      endpoint: 'idb://mountyourclouds_db',
       region: 'local-browser',
       bucket: 'local-vault',
       status: 'connected',
@@ -215,7 +215,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
       name: 'AWS S3 Production',
       endpoint: 'https://s3.us-east-1.amazonaws.com',
       region: 'us-east-1',
-      bucket: 'televault-prod-assets',
+      bucket: 'mountyourclouds-prod-assets',
       status: 'connected',
       allocatedBytes: 500 * SI_GB,
       latencyMs: 78,
@@ -229,7 +229,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
       name: 'Cloudflare R2 Edge',
       endpoint: 'https://88f19c2a.r2.cloudflarestorage.com',
       region: 'wnam',
-      bucket: 'televault-cdn-edge',
+      bucket: 'mountyourclouds-cdn-edge',
       status: 'connected',
       allocatedBytes: 400 * SI_GB,
       latencyMs: 56,
@@ -243,7 +243,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
       name: 'GCS Coldline Archive',
       endpoint: 'https://storage.googleapis.com',
       region: 'us-central1',
-      bucket: 'televault-vault-snapshots',
+      bucket: 'mountyourclouds-vault-snapshots',
       status: 'connected',
       allocatedBytes: 800 * SI_GB,
       latencyMs: 104,
@@ -395,10 +395,10 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
     {
       id: 'file-img-hero-keyart',
       folder: 'fld-des-shots',
-      name: 'televault-interface-overview.png',
+      name: 'mountyourclouds-interface-overview.png',
       mount: 'mega-vault',
       palette: ['#090A0F', '#1E1B4B', '#4F46E5'],
-      title: 'TeleVault Explorer',
+      title: 'MountYourClouds Explorer',
       sub: '1280x720 · MEGA Cloud · Dark UI',
       starred: true,
       days: 1.2,
@@ -527,9 +527,9 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
       ext: 'md',
       starred: true,
       days: 0.4,
-      content: `# TeleVault Universal Cloud Storage Workspace
+      content: `# MountYourClouds Universal Cloud Storage Workspace
 
-Welcome to **TeleVault**, a multi-cloud file manager supporting 22+ mountable storage providers including **MEGA**, **TeraBox**, **Google Drive**, **Dropbox**, **OneDrive**, **Box**, **pCloud**, **Proton Drive**, **AWS S3**, **Cloudflare R2**, **Google Cloud Storage**, **Azure Blob**, **Backblaze B2**, **Wasabi**, **Nextcloud**, and **WebDAV**.
+Welcome to **MountYourClouds**, a multi-cloud file manager supporting 39+ mountable storage providers including **MEGA**, **TeraBox**, **Google Drive**, **Dropbox**, **OneDrive**, **Box**, **pCloud**, **Proton Drive**, **AWS S3**, **Cloudflare R2**, **Google Cloud Storage**, **Azure Blob**, **Backblaze B2**, **Wasabi**, **Nextcloud**, and **WebDAV**.
 
 ## Subscription Tiers
 - **FREE (₹0/month)**: Up to 2 cloud accounts · 5 GB/day · 25 GB/month cross-cloud transfers.
@@ -595,7 +595,7 @@ export interface MultipartPartReceipt {
       starred: false,
       days: 7.0,
       content: `#!/usr/bin/env python3
-"""Verify SHA-256 manifest digests across exported TeleVault archive blobs."""
+"""Verify SHA-256 manifest digests across exported MountYourClouds archive blobs."""
 
 import hashlib
 from pathlib import Path
@@ -617,7 +617,7 @@ def sha256_file(path: Path) -> str:
       ext: 'sql',
       starred: false,
       days: 10.5,
-      content: `-- TeleVault Metadata Catalog Reference Schema
+      content: `-- MountYourClouds Metadata Catalog Reference Schema
 CREATE TABLE provider_mounts (
   id VARCHAR(64) PRIMARY KEY,
   kind VARCHAR(24) NOT NULL,
@@ -696,9 +696,9 @@ CREATE TABLE provider_mounts (
       starred: false,
       days: 12.4,
       content: `Department,Owner,AllocatedGB,PrimaryMount
-Engineering,alex.rivera@televault.demo,850,s3-prod
-Design,maya.chen@televault.demo,1200,mega-vault
-Media,sam.patel@televault.demo,1024,terabox-cloud
+Engineering,alex.rivera@mountyourclouds.demo,850,s3-prod
+Design,maya.chen@mountyourclouds.demo,1200,mega-vault
+Media,sam.patel@mountyourclouds.demo,1024,terabox-cloud
 `,
     },
     {
@@ -718,7 +718,7 @@ Media,sam.patel@televault.demo,1024,terabox-cloud
     {
       id: 'file-svg-logo',
       folder: 'fld-des-brand',
-      name: 'televault-badge-vector.svg',
+      name: 'mountyourclouds-badge-vector.svg',
       mount: 'local-vault',
       mime: 'image/svg+xml',
       ext: 'svg',
@@ -740,7 +740,7 @@ Media,sam.patel@televault.demo,1024,terabox-cloud
       starred: false,
       days: 7.9,
       content: `<!doctype html>
-<div class="televault-prototype-banner" role="status">
+<div class="mountyourclouds-prototype-banner" role="status">
   <span class="badge">Prototype · simulated connectors · data stays in this browser</span>
 </div>
 `,
@@ -857,7 +857,7 @@ This directory tracks historical snapshots stored across simulated mounts.
     {
       id: 'file-ph-release-bundle-zip',
       folder: 'fld-eng-releases',
-      name: 'televault-desktop-universal-symbols.zip',
+      name: 'mountyourclouds-desktop-universal-symbols.zip',
       mount: 'mega-vault',
       mime: 'application/zip',
       ext: 'zip',
@@ -1050,7 +1050,7 @@ This directory tracks historical snapshots stored across simulated mounts.
     ],
     telegramWebhookSim: {
       enabled: true,
-      botHandle: '@TeleVaultAlertsBot',
+      botHandle: '@MountYourCloudsAlertsBot',
       notifyOnUpload: true,
       notifyOnQuotaWarn: true,
     },
@@ -1062,7 +1062,7 @@ This directory tracks historical snapshots stored across simulated mounts.
       {
         id: 'tok-seed-1',
         name: 'CLI Sync Worker (Demo)',
-        prefix: 'tv_demo_99a4',
+        prefix: 'myc_demo_99a4',
         tokenValue: 'tv_demo_99a4_f81c2e09b74a11d3850c',
         createdAt: now - 10 * dayMs,
       },

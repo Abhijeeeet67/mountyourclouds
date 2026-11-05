@@ -238,7 +238,7 @@ export function LandingPage() {
                     isFolder: false,
                   },
                   {
-                    name: 'televault-desktop-universal-symbols.zip',
+                    name: 'mountyourclouds-desktop-universal-symbols.zip',
                     mount: 'Cloudflare R2 Edge · Simulated',
                     size: '6.8 GB',
                     date: '4d ago',
@@ -392,7 +392,7 @@ export function LandingPage() {
           <div className="rounded-lg bg-[#131620] border border-[#1E2230] p-6 space-y-4">
             <pre className="font-mono text-xs text-[#F3F4F6] overflow-x-auto leading-relaxed">
 {`┌───────────────────────────────────────────────────────────────────────────┐
-│  TeleVault React UI (Explorer · Transfer Tray · Overview · Command ⌘K)    │
+│  MountYourClouds React UI (Explorer · Transfer Tray · Overview · ⌘K)      │
 └─────────────────────────────────────┬─────────────────────────────────────┘
                                       ▼
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -405,13 +405,13 @@ export function LandingPage() {
 ┌─────────────────────────────────────┐   ┌─────────────────────────────────┐
 │  IndexedDBStorageAdapter (Real)     │   │  SimulatedCloudAdapter (Local)  │
 │  • local-vault (1 MiB parts)        │   │  • s3-prod     (8 MiB · ~80ms)  │
-│  • Persists Blobs in televault_db   │   │  • r2-edge     (8 MiB · ~60ms)  │
-│                                     │   │  • gcs-archive (8 MiB · ~100ms) │
+│  • Persists Blobs in                │   │  • r2-edge     (8 MiB · ~60ms)  │
+│    mountyourclouds_db               │   │  • gcs-archive (8 MiB · ~100ms) │
 │                                     │   │  • webdav-nas  (4 MiB · ~140ms) │
 └─────────────────────────────────────┘   └─────────────────────────────────┘`}
             </pre>
             <p className="text-xs text-[#8A94A6] border-t border-[#1E2230] pt-3 font-mono">
-              Prototype note: Simulated adapters do not contact external cloud servers; on multipart completion, they commit the uploaded Blob into the local browser’s <code className="text-[#F3F4F6]">televault_db</code> IndexedDB store.
+              Prototype note: Simulated adapters do not contact external cloud servers; on multipart completion, they commit the uploaded Blob into the local browser’s <code className="text-[#F3F4F6]">mountyourclouds_db</code> IndexedDB store.
             </p>
           </div>
         </section>

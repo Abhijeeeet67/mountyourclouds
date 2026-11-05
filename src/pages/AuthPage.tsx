@@ -33,7 +33,7 @@ export function AuthPage() {
     try {
       await launchDemoWorkspace();
       addToast({
-        title: 'Entered TeleVault Demo Workspace',
+        title: 'Entered MountYourClouds Demo Workspace',
         variant: 'success',
       });
       navigate('/app/overview');

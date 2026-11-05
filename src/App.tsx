@@ -75,11 +75,11 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#090A0F] text-[#F3F4F6] flex flex-col items-center justify-center p-6">
         <div className="w-9 h-9 rounded-md bg-[#4F46E5] flex items-center justify-center text-white font-mono text-sm font-bold mb-3">
-          TV
+          MYC
         </div>
-        <p className="text-sm font-medium text-[#F3F4F6]">Initializing TeleVault Workspace…</p>
+        <p className="text-sm font-medium text-[#F3F4F6]">Initializing MountYourClouds Workspace…</p>
         <p className="text-xs font-mono text-[#8A94A6] mt-1">
-          Opening IndexedDB (televault_db) & verifying deterministic seed
+          Opening IndexedDB (mountyourclouds_db) & verifying deterministic seed
         </p>
       </div>
     );

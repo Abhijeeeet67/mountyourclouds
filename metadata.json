@@ -1,6 +1,6 @@
 {
-  "name": "TeleVault",
-  "description": "Dark-mode, keyboard-first multi-cloud file manager prototype with simulated S3, Cloudflare R2, Google Cloud Storage, WebDAV mounts, and IndexedDB persistence.",
+  "name": "MountYourClouds",
+  "description": "Dark-mode, keyboard-first multi-cloud file manager and storage aggregator with multi-provider cloud connectors and browser IndexedDB persistence.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

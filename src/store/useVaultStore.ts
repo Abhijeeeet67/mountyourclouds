@@ -145,7 +145,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   scheduledTransfers: [],
   telegramWebhookSim: {
     enabled: true,
-    botHandle: '@TeleVaultNotifyBot',
+    botHandle: '@MountYourCloudsNotifyBot',
     notifyOnUpload: true,
     notifyOnQuotaWarn: true,
   },

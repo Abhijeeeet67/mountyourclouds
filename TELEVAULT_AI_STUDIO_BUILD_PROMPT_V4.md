@@ -1,7 +1,7 @@
-# TeleVault — Google AI Studio Master Build Prompt (v4 Production SaaS Spec)
+# MountYourClouds — Google AI Studio Master Build Prompt (v4 Production SaaS Spec)
 
 > **Prompt Instructions for Google AI Studio / Gemini Code Assist:**
-> Act as a Principal Full-Stack SaaS Architect and Senior Front-End Engineer. Build **TeleVault**, a modern, dark-mode, keyboard-first multi-cloud file management SaaS application, as a **hybrid single-page application (SPA)**:
+> Act as a Principal Full-Stack SaaS Architect and Senior Front-End Engineer. Build **MountYourClouds**, a modern, dark-mode, keyboard-first multi-cloud file management SaaS application, as a **hybrid single-page application (SPA)**:
 > - Operates out-of-the-box with **zero required external keys** using browser-native IndexedDB and deterministic cloud simulators.
 > - Supports **real live cloud connections** (Google Drive REST API v3, S3/R2-compatible object storage, and WebDAV) whenever users supply credentials or OAuth tokens via the in-app UI or environment variables.
 > - Preserves all verified architectural guarantees: atomic single-transaction IndexedDB commits (eliminating double-write I/O), cycle-safe tree traversal, zero keyboard listener thrashing, viewport-clamped context menus, failed upload dismissal, and Vite chunk splitting.
@@ -12,7 +12,7 @@
 
 ## 0. Product Vision & Hybrid SaaS Architecture
 
-TeleVault is a keyboard-first, zero-egress multi-cloud file manager and storage aggregator that unifies storage across **39 cloud providers** alongside a local browser IndexedDB vault.
+MountYourClouds is a keyboard-first, zero-egress multi-cloud file manager and storage aggregator that unifies storage across **39 cloud providers** alongside a local browser IndexedDB vault.
 
 ### Hybrid Operation Model (Real Cloud + Local Simulator)
 1. **Dual Mount Modes (`mode: 'real' | 'simulated'`)**:
@@ -21,14 +21,14 @@ TeleVault is a keyboard-first, zero-egress multi-cloud file manager and storage 
    - **`mode: 'simulated'`**: The mount uses the deterministic local simulator with realistic latency and bandwidth modeling, displaying a purple/blue **`Simulated`** badge. The application remains 100% testable out-of-the-box in Google AI Studio without requiring any API keys.
 2. **Permanent Transparency Strip**:
    Render a permanent top bar on the landing page and app shell:
-   `"TeleVault Hybrid Multi-Cloud SaaS · Real Cloud APIs + Local Simulator Fallback"`
+   `"MountYourClouds Hybrid Multi-Cloud SaaS · Real Cloud APIs + Local Simulator Fallback"`
 3. **Honesty in Provider Capabilities**:
    - Explicitly classify providers that lack public browser OAuth REST APIs (e.g., MEGA, TeraBox, Proton Drive, Apple iCloud, Sync.com) as `integrationStatus: 'api_restricted'`, with a transparent notice explaining why browser web apps cannot connect directly without a private client daemon.
    - Explicitly mark network protocols (SFTP, SMB, FTP) with `requiresBackendProxy: true`, noting that browser web runtimes cannot open raw TCP sockets without a CORS bridge or WebSocket proxy.
 4. **Standard Units**:
    - Use strict **SI standard decimal units** everywhere in user interfaces and pricing formulas (`1 KB = 1,000 B`, `1 MB = 1,000,000 B`, `1 GB = 10^9 B`, `1 TB = 10^12 B`).
    - Use binary `MiB` multiples (`1024 * 1024`) strictly for multipart chunk slicing (`partSizeBytes`).
-5. **Brand Constant**: Defined once in `src/lib/constants.ts`: `export const APP_NAME = 'TeleVault';`.
+5. **Brand Constant**: Defined once in `src/lib/constants.ts`: `export const APP_NAME = 'MountYourClouds';`.
 
 ---
 
@@ -38,7 +38,7 @@ Ensure all dependencies use verified, published npm package versions:
 
 ```json
 {
-  "name": "televault",
+  "name": "mountyourclouds",
   "private": true,
   "version": "4.0.0",
   "type": "module",
@@ -109,7 +109,7 @@ export default defineConfig({
 
 ## 2. 39-Provider Catalogue & Metadata Architecture
 
-TeleVault organizes 39 cloud and network storage providers across 3 distinct categories, plus the built-in local IndexedDB vault.
+MountYourClouds organizes 39 cloud and network storage providers across 3 distinct categories, plus the built-in local IndexedDB vault.
 
 ```ts
 // 39 External Cloud Providers + Built-in Local Vault
@@ -217,7 +217,7 @@ export const PROVIDER_KIND_META: Record<ProviderKind, ProviderMetaInfo> = {
     defaultZeroEgress: true,
     requiresBackendProxy: false,
     badgeColor: '#10B981',
-    defaultEndpoint: 'indexeddb://televault_db/blobs',
+    defaultEndpoint: 'indexeddb://mountyourclouds_db/blobs',
     defaultRegion: 'browser-local',
     defaultAllocatedGB: 20,
     baseLatencyMs: 4,
@@ -1082,7 +1082,7 @@ Provides instant out-of-the-box operation for all 39 providers without requiring
 
 ## 5. In-App Environment & Credentials Configurator
 
-Because Google AI Studio runs inside a sandboxed web preview where `.env` files are not easily editable, TeleVault provides an in-app **API Credentials & OAuth Keys** configurator:
+Because Google AI Studio runs inside a sandboxed web preview where `.env` files are not easily editable, MountYourClouds provides an in-app **API Credentials & OAuth Keys** configurator:
 
 1. **`SettingsPage.tsx` → API & OAuth Keys Section**:
    - Allows users to paste their `GOOGLE_DRIVE_CLIENT_ID`, `DROPBOX_APP_KEY`, or `ONEDRIVE_CLIENT_ID` directly into UI inputs.
@@ -1121,7 +1121,7 @@ All critical bug fixes and stability safeguards from v3 must be strictly maintai
 
 ## 7. Subscription Tiers & Quota Management
 
-TeleVault enforces concrete multi-cloud platform tiers modeled in INR (₹) with annual billing discounts:
+MountYourClouds enforces concrete multi-cloud platform tiers modeled in INR (₹) with annual billing discounts:
 
 | Tier | Base Monthly | Annual Billing (20% off) | Cloud Accounts Cap | Daily Ingress/Egress Quota | Monthly Cross-Cloud Bandwidth | Max Bulk Batch |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -1162,7 +1162,7 @@ npm run build  # vite build (compiles in < 1.2s with zero chunk size warnings)
 
 ## 9. Phased Implementation Roadmap for AI Studio
 
-When building or updating TeleVault in Google AI Studio, proceed in the following order:
+When building or updating MountYourClouds in Google AI Studio, proceed in the following order:
 
 1. **Phase 1 — Constants & Data Models**:
    Expand `ProviderKind` to all 39 providers. Update `PROVIDER_KIND_META` in `src/lib/constants.ts` with complete integration metadata, categories, proxy flags, and honesty notes.

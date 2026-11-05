@@ -85,7 +85,7 @@ export function ProvidersPage() {
   const [s3Region, setS3Region] = useState('us-east-1');
   const [bucketName, setBucketName] = useState('/CloudVault');
   const [r2AccountId, setR2AccountId] = useState('94a0bc12e8');
-  const [gcsProjectId, setGcsProjectId] = useState('televault-cloud-demo');
+  const [gcsProjectId, setGcsProjectId] = useState('mountyourclouds-cloud-demo');
   const [gcsLocation, setGcsLocation] = useState('us-central1');
   const [webdavUrl, setWebdavUrl] = useState('https://dav.example.com/webdav');
   const [webdavBasePath, setWebdavBasePath] = useState('/vault');
@@ -108,8 +108,8 @@ export function ProvidersPage() {
     const meta = PROVIDER_KIND_META[nextKind];
     const defaultPath =
       meta.category === 'Object & Infrastructure Cloud'
-        ? `televault-${nextKind}-bucket`
-        : '/TeleVault';
+        ? `mountyourclouds-${nextKind}-bucket`
+        : '/MountYourClouds';
     setKind(nextKind);
     setProviderCategoryTab(
       meta.category === 'Built-In Browser'
@@ -153,7 +153,7 @@ export function ProvidersPage() {
     setName(mount.name);
     setAllocatedGB(String(Math.max(1, Math.round(mount.allocatedBytes / SI_GB))));
     setS3Region(mount.region ?? PROVIDER_KIND_META[k].defaultRegion);
-    setBucketName(mount.bucket ?? '/TeleVault');
+    setBucketName(mount.bucket ?? '/MountYourClouds');
     setGcsLocation(mount.region ?? 'us-central1');
     setWebdavUrl(mount.endpoint ?? PROVIDER_KIND_META[k].defaultEndpoint);
     setWebdavBasePath(mount.bucket ?? '/vault');
@@ -212,7 +212,7 @@ export function ProvidersPage() {
     const meta = PROVIDER_KIND_META[kind];
     let endpoint: string | null = meta.defaultEndpoint;
     let region: string | null = s3Region.trim() || meta.defaultRegion;
-    let bucket: string | null = bucketName.trim() || '/TeleVault';
+    let bucket: string | null = bucketName.trim() || '/MountYourClouds';
 
     if (editingMount?.kind === 'local') {
       endpoint = editingMount.endpoint;
@@ -418,7 +418,7 @@ export function ProvidersPage() {
             Modular Connector Architecture — External Cloud Capacity vs. Platform Quotas
           </p>
           <p className="mt-0.5 leading-relaxed">
-            Storage capacity is provided by each connected cloud service (such as MEGA 2 TB, TeraBox 1 TB, S3, Cloudflare R2, Google Drive, or WebDAV). Your TeleVault subscription plan governs how many cloud accounts you can mount simultaneously and your daily/monthly cross-cloud transfer bandwidth. Secret keys and passwords are never collected in this browser prototype.
+            Storage capacity is provided by each connected cloud service (such as MEGA 2 TB, TeraBox 1 TB, S3, Cloudflare R2, Google Drive, or WebDAV). Your MountYourClouds subscription plan governs how many cloud accounts you can mount simultaneously and your daily/monthly cross-cloud transfer bandwidth. Secret keys and passwords are never collected in this browser prototype.
           </p>
         </div>
       </div>
@@ -927,7 +927,7 @@ export function ProvidersPage() {
                         type="text"
                         value={bucketName}
                         onChange={(e) => setBucketName(e.target.value)}
-                        placeholder="/TeleVault"
+                        placeholder="/MountYourClouds"
                         className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] font-mono text-[#F3F4F6]"
                       />
                     </div>

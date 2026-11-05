@@ -1,10 +1,10 @@
 import type { FileCategory, ProviderKind } from '../types/domain';
 
-export const APP_NAME = 'TeleVault';
+export const APP_NAME = 'MountYourClouds';
 
 export const PROTOTYPE_BADGE_TEXT = 'Prototype · simulated connectors · data stays in this browser';
 
-export const DEMO_ACCOUNT_EMAIL = 'alex.rivera@televault.demo';
+export const DEMO_ACCOUNT_EMAIL = 'alex.rivera@mountyourclouds.demo';
 export const DEMO_ACCOUNT_NAME = 'Alex Rivera';
 export const DEMO_ACCOUNT_DEFAULT_PASSWORD = 'demo-vault-password';
 
@@ -38,7 +38,7 @@ export const PROVIDER_KIND_META: Record<ProviderKind, ProviderMetaInfo> = {
     isSimulated: false,
     defaultZeroEgress: true,
     badgeColor: '#818CF8',
-    defaultEndpoint: 'idb://televault_db',
+    defaultEndpoint: 'idb://mountyourclouds_db',
     defaultRegion: 'local-browser',
     defaultAllocatedGB: 10,
     baseLatencyMs: 4,
@@ -278,7 +278,7 @@ export const PROVIDER_KIND_META: Record<ProviderKind, ProviderMetaInfo> = {
     isSimulated: true,
     defaultZeroEgress: false,
     badgeColor: '#38BDF8',
-    defaultEndpoint: 'https://televault.blob.core.windows.net',
+    defaultEndpoint: 'https://mountyourclouds.blob.core.windows.net',
     defaultRegion: 'eastus2',
     defaultAllocatedGB: 1000,
     baseLatencyMs: 86,
