@@ -3,6 +3,7 @@ import {
   Check,
   Copy,
   Database,
+  Globe,
   KeyRound,
   LogOut,
   RotateCcw,
@@ -23,6 +24,7 @@ export function SettingsPage() {
   const usingMemoryFallback = useVaultStore((s) => s.usingMemoryFallback);
   const updateProfile = useVaultStore((s) => s.updateProfile);
   const updateDeveloperSettings = useVaultStore((s) => s.updateDeveloperSettings);
+  const updateApiCredentials = useVaultStore((s) => s.updateApiCredentials);
   const generateDemoToken = useVaultStore((s) => s.generateDemoToken);
   const revokeDemoToken = useVaultStore((s) => s.revokeDemoToken);
   const resetSampleWorkspace = useVaultStore((s) => s.resetSampleWorkspace);
@@ -34,6 +36,27 @@ export function SettingsPage() {
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [copiedTokenId, setCopiedTokenId] = useState<string | null>(null);
+
+  // In-App API & OAuth Configurator State
+  const [gdriveClientId, setGdriveClientId] = useState(settings.apiCredentials?.gdriveClientId ?? '');
+  const [gdriveToken, setGdriveToken] = useState(settings.apiCredentials?.gdriveToken ?? '');
+  const [dropboxKey, setDropboxKey] = useState(settings.apiCredentials?.dropboxKey ?? '');
+  const [onedriveClientId, setOnedriveClientId] = useState(settings.apiCredentials?.onedriveClientId ?? '');
+  const [s3AccessKey, setS3AccessKey] = useState(settings.apiCredentials?.s3AccessKey ?? '');
+  const [s3SecretKey, setS3SecretKey] = useState(settings.apiCredentials?.s3SecretKey ?? '');
+
+  const handleSaveApiCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await updateApiCredentials({
+      gdriveClientId: gdriveClientId.trim(),
+      gdriveToken: gdriveToken.trim(),
+      dropboxKey: dropboxKey.trim(),
+      onedriveClientId: onedriveClientId.trim(),
+      s3AccessKey: s3AccessKey.trim(),
+      s3SecretKey: s3SecretKey.trim(),
+    });
+    addToast({ title: 'API Credentials & OAuth Keys saved to browser vault', variant: 'success' });
+  };
 
   const handleCopyToken = async (id: string, text: string) => {
     let success = false;
@@ -178,6 +201,122 @@ export function SettingsPage() {
               className="px-4 py-1.5 rounded-md bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-medium"
             >
               Save Profile
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {/* API Credentials & Live OAuth Configurator */}
+      <section className="rounded-lg bg-[#131620] border border-[#1E2230] p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-[#10B981]" />
+            <h2 className="text-[15px] font-bold text-[#F3F4F6]">
+              Live Cloud API Credentials & OAuth Keys
+            </h2>
+          </div>
+          <span className="text-[11px] font-mono text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/30 px-2 py-0.5 rounded">
+            Hybrid Real Cloud Engine
+          </span>
+        </div>
+
+        <p className="text-xs text-[#8A94A6]">
+          Configure real cloud credentials to connect live cloud storage. If omitted, MountYourClouds seamlessly operates with deterministic local simulators.
+        </p>
+
+        <form onSubmit={handleSaveApiCredentials} className="space-y-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="gdrive-client-id" className="block text-xs font-medium text-[#8A94A6] mb-1">
+                Google Drive OAuth Client ID
+              </label>
+              <input
+                id="gdrive-client-id"
+                type="text"
+                placeholder="apps.googleusercontent.com"
+                value={gdriveClientId}
+                onChange={(e) => setGdriveClientId(e.target.value)}
+                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="gdrive-token" className="block text-xs font-medium text-[#8A94A6] mb-1">
+                Google Drive Access Token (Direct Live API)
+              </label>
+              <input
+                id="gdrive-token"
+                type="password"
+                placeholder="ya29.a0Ac..."
+                value={gdriveToken}
+                onChange={(e) => setGdriveToken(e.target.value)}
+                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="dropbox-key" className="block text-xs font-medium text-[#8A94A6] mb-1">
+                Dropbox App Key / Client ID
+              </label>
+              <input
+                id="dropbox-key"
+                type="text"
+                placeholder="dropbox-app-key"
+                value={dropboxKey}
+                onChange={(e) => setDropboxKey(e.target.value)}
+                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="onedrive-client-id" className="block text-xs font-medium text-[#8A94A6] mb-1">
+                Microsoft OneDrive / Graph App Client ID
+              </label>
+              <input
+                id="onedrive-client-id"
+                type="text"
+                placeholder="azure-app-client-id"
+                value={onedriveClientId}
+                onChange={(e) => setOnedriveClientId(e.target.value)}
+                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="s3-access-key" className="block text-xs font-medium text-[#8A94A6] mb-1">
+                AWS S3 / Cloudflare R2 Access Key ID
+              </label>
+              <input
+                id="s3-access-key"
+                type="text"
+                placeholder="AKIA... or R2 token ID"
+                value={s3AccessKey}
+                onChange={(e) => setS3AccessKey(e.target.value)}
+                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="s3-secret-key" className="block text-xs font-medium text-[#8A94A6] mb-1">
+                AWS S3 / Cloudflare R2 Secret Access Key
+              </label>
+              <input
+                id="s3-secret-key"
+                type="password"
+                placeholder="Secret key..."
+                value={s3SecretKey}
+                onChange={(e) => setS3SecretKey(e.target.value)}
+                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              className="px-4 py-1.5 rounded-md bg-[#10B981] hover:bg-[#059669] text-white text-xs font-medium"
+            >
+              Save Cloud API Credentials
             </button>
           </div>
         </form>

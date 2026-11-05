@@ -416,7 +416,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
               className="flex items-center gap-2.5 text-[#F3F4F6] font-bold tracking-tight whitespace-nowrap overflow-hidden"
             >
               <div className="w-7 h-7 rounded-md bg-[#4F46E5] flex items-center justify-center text-white font-mono text-xs font-bold shrink-0">
-                TV
+                MC
               </div>
               <span
                 className={`text-[15px] ${

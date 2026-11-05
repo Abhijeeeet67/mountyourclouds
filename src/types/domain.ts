@@ -1,17 +1,25 @@
 export type ProviderKind =
   | 'local'
+  // Category A: Consumer Cloud (18)
+  | 'gdrive'
+  | 'onedrive'
+  | 'dropbox'
+  | 'box'
   | 'mega'
   | 'terabox'
-  | 'gdrive'
-  | 'dropbox'
-  | 'onedrive'
-  | 'box'
   | 'pcloud'
-  | 'icloud'
   | 'proton'
+  | 'icloud'
   | 'sync'
   | 'kdrive'
-  | 'nextcloud'
+  | 'koofr'
+  | 'filen'
+  | 'internxt'
+  | 'jottacloud'
+  | 'zoho'
+  | 'yandex'
+  | 'mediafire'
+  // Category B: Object & Developer Storage (12)
   | 's3'
   | 'r2'
   | 'gcs'
@@ -19,22 +27,85 @@ export type ProviderKind =
   | 'b2'
   | 'wasabi'
   | 'do_spaces'
+  | 'oracle_os'
+  | 'scaleway'
+  | 'linode'
+  | 'vultr'
+  | 'storj'
+  // Category C: Self-Hosted & Network Storage (9)
+  | 'nextcloud'
+  | 'owncloud'
+  | 'synology'
+  | 'qnap'
+  | 'webdav'
   | 'hetzner'
-  | 'webdav';
+  | 'sftp'
+  | 'smb'
+  | 'ftp';
 
 export type MountStatus = 'connected' | 'syncing' | 'disconnected' | 'error';
+export type MountMode = 'real' | 'simulated';
+
+export type ProviderCategory =
+  | 'Built-In Browser'
+  | 'Consumer & Personal Cloud'
+  | 'Object & Infrastructure Cloud'
+  | 'Self-Hosted & Protocol';
+
+export type IntegrationStatus =
+  | 'fully_integrated'
+  | 'partially_integrated'
+  | 'awaiting_credentials'
+  | 'api_restricted'
+  | 'proxy_required'
+  | 'simulated';
+
+export type AuthMethod =
+  | 'oauth2_pkce'
+  | 'oauth2_code'
+  | 's3_credentials'
+  | 'sas_token'
+  | 'webdav_basic'
+  | 'ssh_key'
+  | 'restricted_sdk'
+  | 'simulated';
+
+export interface ProviderCredentials {
+  oauthToken?: {
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt?: number;
+    clientId?: string;
+  };
+  s3Keys?: {
+    accessKeyId: string;
+    secretAccessKey: string;
+    sessionToken?: string;
+    region: string;
+    bucket: string;
+    endpoint?: string;
+  };
+  webdavAuth?: {
+    username: string;
+    password?: string;
+    url: string;
+    basePath?: string;
+  };
+}
 
 export interface ProviderMount {
   id: string;                  // 'local-vault' is built in: cannot be disconnected or removed
   kind: ProviderKind;
+  mode?: MountMode;            // 'real' (live API) or 'simulated' (local simulator); defaults to 'simulated'
   name: string;                // unique, case-insensitive
   endpoint: string | null;
   region: string | null;
   bucket: string | null;
   status: MountStatus;
-  allocatedBytes: number;      // simulated capacity chosen by the user
+  allocatedBytes: number;      // simulated or configured capacity in SI bytes
   latencyMs: number | null;    // from the last handshake
-  zeroEgress: boolean;         // true for r2, mega, pcloud, etc.
+  zeroEgress: boolean;         // true for zero-egress providers
+  credentials?: ProviderCredentials;
   lastSyncedAt: number | null;
   createdAt: number;
 }                              // usedBytes is DERIVED from files, never stored
@@ -202,6 +273,7 @@ export interface WorkspaceSettings {
   };
   devSettings: DeveloperSettings;
   demoTokens: DemoApiToken[];
+  apiCredentials?: Record<string, string>;
   activeAccountEmail: string | null;
 }
 
@@ -212,6 +284,7 @@ export interface ConnectionReport {
   canRead: boolean;
   canWrite: boolean;
   message: string;
+  liveApi?: boolean;
 }
 
 export type StorageErrorCode =

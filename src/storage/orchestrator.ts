@@ -27,8 +27,11 @@ import {
   type WorkspaceSettings,
 } from '../types/domain';
 import {
+  GoogleDriveAdapter,
   IndexedDBStorageAdapter,
+  S3CompatibleAdapter,
   SimulatedCloudAdapter,
+  WebDAVAdapter,
 } from './adapters';
 import { collectSubtreeIds, isEffectivelyTrashed, vaultRepository } from './repository';
 
@@ -88,6 +91,9 @@ export function resolveUniqueSiblingName(
 
 export class StorageOrchestrator {
   private adapters: Record<ProviderKind, StorageProviderAdapter>;
+  private liveGdriveAdapter: GoogleDriveAdapter;
+  private liveWebdavAdapter: WebDAVAdapter;
+  private liveS3Adapter: S3CompatibleAdapter;
   private tasks = new Map<string, InternalUploadTask>();
   private activeCount = 0;
   private readonly maxConcurrency = 3;
@@ -110,6 +116,15 @@ export class StorageOrchestrator {
 
     const localAdapter = new IndexedDBStorageAdapter(vaultRepository);
     localAdapter.setPartProgressListener(onPartTick);
+
+    this.liveGdriveAdapter = new GoogleDriveAdapter(vaultRepository);
+    this.liveGdriveAdapter.setPartProgressListener(onPartTick);
+
+    this.liveWebdavAdapter = new WebDAVAdapter(vaultRepository);
+    this.liveWebdavAdapter.setPartProgressListener(onPartTick);
+
+    this.liveS3Adapter = new S3CompatibleAdapter(vaultRepository);
+    this.liveS3Adapter.setPartProgressListener(onPartTick);
 
     const map: Partial<Record<ProviderKind, StorageProviderAdapter>> = {
       local: localAdapter,
@@ -165,6 +180,24 @@ export class StorageOrchestrator {
       this.limitReachedCallback(msg);
       throw new StorageError('PLAN_LIMIT_REACHED', msg, false);
     }
+  }
+
+  public getAdapterForMount(mount: ProviderMount): StorageProviderAdapter {
+    if (mount.kind === 'local') {
+      return this.adapters.local;
+    }
+    if (mount.mode === 'real') {
+      if (mount.kind === 'gdrive') {
+        return this.liveGdriveAdapter;
+      }
+      if (['webdav', 'nextcloud', 'owncloud', 'synology', 'qnap', 'hetzner', 'koofr'].includes(mount.kind)) {
+        return this.liveWebdavAdapter;
+      }
+      if (['s3', 'r2', 'b2', 'wasabi', 'do_spaces', 'scaleway', 'linode', 'vultr', 'storj', 'oracle_os'].includes(mount.kind)) {
+        return this.liveS3Adapter;
+      }
+    }
+    return this.adapters[mount.kind] ?? this.adapters.s3;
   }
 
   public getAdapterForKind(kind: ProviderKind): StorageProviderAdapter {
@@ -684,7 +717,7 @@ export class StorageOrchestrator {
     for (const file of allFilesToDelete.values()) {
       const mount = mountMap.get(file.providerId);
       if (mount && file.hasBlob) {
-        const adapter = this.getAdapterForKind(mount.kind);
+        const adapter = this.getAdapterForMount(mount);
         await adapter.deleteObject(mount, file.id).catch(() => {});
       }
     }
@@ -772,7 +805,7 @@ export class StorageOrchestrator {
       }
     }
 
-    const adapter = this.getAdapterForKind(mount.kind);
+    const adapter = this.getAdapterForMount(mount);
     const partSizeBytes = adapter.partSizeBytes;
     const createdIds: string[] = [];
     const now = Date.now();
@@ -842,7 +875,7 @@ export class StorageOrchestrator {
         throw new StorageError('NOT_FOUND', 'Target provider mount no longer exists.', false);
       }
 
-      const adapter = this.getAdapterForKind(mount.kind);
+      const adapter = this.getAdapterForMount(mount);
       const objectKey = `file-${crypto.randomUUID()}`;
 
       if (!task.uploadId) {
@@ -1071,7 +1104,7 @@ export class StorageOrchestrator {
       const mounts = await vaultRepository.getAllMounts();
       const mount = mounts.find((m) => m.id === task.job.targetProviderId);
       if (mount) {
-        const adapter = this.getAdapterForKind(mount.kind);
+        const adapter = this.getAdapterForMount(mount);
         await adapter.abortMultipartUpload(mount, task.job.id, task.uploadId).catch(() => {});
       }
     }
@@ -1130,7 +1163,7 @@ export class StorageOrchestrator {
       throw new StorageError('DISCONNECTED', `Mount "${mount.name}" is disconnected.`, false);
     }
 
-    const adapter = this.getAdapterForKind(mount.kind);
+    const adapter = this.getAdapterForMount(mount);
     const blob = await adapter.getObject(mount, node.id);
     const url = URL.createObjectURL(blob);
     return { url, blob };
@@ -1173,7 +1206,7 @@ export class StorageOrchestrator {
     mount: ProviderMount,
     signal?: AbortSignal
   ): Promise<ConnectionReport> {
-    const adapter = this.getAdapterForKind(mount.kind);
+    const adapter = this.getAdapterForMount(mount);
     const report = await adapter.testConnection(mount, signal);
     const updated: ProviderMount = {
       ...mount,
@@ -1228,7 +1261,7 @@ export class StorageOrchestrator {
 
   public async updateMount(
     mountId: string,
-    updates: Partial<Pick<ProviderMount, 'name' | 'endpoint' | 'region' | 'bucket' | 'allocatedBytes' | 'latencyMs'>>
+    updates: Partial<Pick<ProviderMount, 'name' | 'endpoint' | 'region' | 'bucket' | 'allocatedBytes' | 'latencyMs' | 'mode' | 'credentials'>>
   ): Promise<ProviderMount> {
     const mounts = await vaultRepository.getAllMounts();
     const target = mounts.find((m) => m.id === mountId);
@@ -1278,7 +1311,7 @@ export class StorageOrchestrator {
     const target = mounts.find((m) => m.id === mountId);
     if (!target) throw new Error('Mount not found.');
 
-    const adapter = this.getAdapterForKind(target.kind);
+    const adapter = this.getAdapterForMount(target);
     const report = await adapter.testConnection({ ...target, status: 'connected' }, signal);
 
     await vaultRepository.putMount({

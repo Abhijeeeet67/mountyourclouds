@@ -79,7 +79,7 @@ export function AuthPage() {
       <header className="px-6 py-4 border-b border-[#1E2230] flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2.5 font-bold text-[15px] text-[#F3F4F6]">
           <div className="w-7 h-7 rounded-md bg-[#4F46E5] flex items-center justify-center text-white font-mono text-xs font-bold">
-            TV
+            MC
           </div>
           <span>{APP_NAME}</span>
         </Link>

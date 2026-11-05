@@ -124,6 +124,7 @@ interface VaultStoreState {
     patch: Partial<NonNullable<WorkspaceSettings['telegramWebhookSim']>>
   ) => Promise<void>;
   updateDeveloperSettings: (dev: Partial<DeveloperSettings>) => Promise<void>;
+  updateApiCredentials: (creds: Record<string, string>) => Promise<void>;
   generateDemoToken: (name: string) => Promise<string>;
   revokeDemoToken: (tokenId: string) => Promise<void>;
   resetSampleWorkspace: () => Promise<void>;
@@ -723,6 +724,20 @@ export const useVaultStore = create<VaultStoreState>((set, get) => ({
       devSettings: {
         ...cur.devSettings,
         ...dev,
+      },
+    };
+    await vaultRepository.setMeta('settings', nextSettings);
+    vaultRepository.notifyBroadcast();
+    await get().refreshFromStorage();
+  },
+
+  updateApiCredentials: async (creds) => {
+    const cur = get().settings;
+    const nextSettings: WorkspaceSettings = {
+      ...cur,
+      apiCredentials: {
+        ...(cur.apiCredentials || {}),
+        ...creds,
       },
     };
     await vaultRepository.setMeta('settings', nextSettings);

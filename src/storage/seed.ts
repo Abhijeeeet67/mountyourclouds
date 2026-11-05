@@ -170,6 +170,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
     {
       id: 'local-vault',
       kind: 'local',
+      mode: 'real',
       name: 'Local Browser Vault',
       endpoint: 'idb://mountyourclouds_db',
       region: 'local-browser',
@@ -184,6 +185,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
     {
       id: 'mega-vault',
       kind: 'mega',
+      mode: 'simulated',
       name: 'MEGA Cloud Drive',
       endpoint: 'https://g.api.mega.co.nz',
       region: 'eu-central-lux',
@@ -198,6 +200,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
     {
       id: 'terabox-cloud',
       kind: 'terabox',
+      mode: 'simulated',
       name: 'TeraBox 1TB Cloud',
       endpoint: 'https://www.terabox.com/rest/2.0/pcs',
       region: 'ap-northeast-1',
@@ -212,6 +215,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
     {
       id: 's3-prod',
       kind: 's3',
+      mode: 'simulated',
       name: 'AWS S3 Production',
       endpoint: 'https://s3.us-east-1.amazonaws.com',
       region: 'us-east-1',
@@ -226,6 +230,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
     {
       id: 'r2-edge',
       kind: 'r2',
+      mode: 'simulated',
       name: 'Cloudflare R2 Edge',
       endpoint: 'https://88f19c2a.r2.cloudflarestorage.com',
       region: 'wnam',
@@ -240,6 +245,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
     {
       id: 'gcs-archive',
       kind: 'gcs',
+      mode: 'simulated',
       name: 'GCS Coldline Archive',
       endpoint: 'https://storage.googleapis.com',
       region: 'us-central1',
@@ -254,6 +260,7 @@ export async function generateDeterministicSeedBundle(now: number = Date.now()):
     {
       id: 'webdav-nas',
       kind: 'webdav',
+      mode: 'simulated',
       name: 'Studio WebDAV NAS',
       endpoint: 'https://dav.internal-studio.example/remote.php/webdav',
       region: 'eu-central',

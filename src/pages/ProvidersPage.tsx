@@ -23,7 +23,7 @@ import { formatBytes, formatRelativeOrShortDate, SI_GB } from '../lib/format';
 import { getEffectivePlans, normalizePlanId } from '../lib/pricing';
 import { storageOrchestrator } from '../storage/orchestrator';
 import { computeMountUsedBytesMap, useVaultStore } from '../store/useVaultStore';
-import type { ProviderKind, ProviderMount } from '../types/domain';
+import type { ProviderCredentials, ProviderKind, ProviderMount } from '../types/domain';
 
 // Bucket name validation rules for object storage providers
 export function validateBucketName(
@@ -91,6 +91,14 @@ export function ProvidersPage() {
   const [webdavBasePath, setWebdavBasePath] = useState('/vault');
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Dual-Mode & Real Cloud Credentials State
+  const [mountMode, setMountMode] = useState<'real' | 'simulated'>('simulated');
+  const [authToken, setAuthToken] = useState('');
+  const [s3AccessKeyId, setS3AccessKeyId] = useState('');
+  const [s3SecretAccessKey, setS3SecretAccessKey] = useState('');
+  const [webdavUser, setWebdavUser] = useState('');
+  const [webdavPass, setWebdavPass] = useState('');
+
   // 3-step handshake state (~1.5s)
   const [handshakeStep, setHandshakeStep] = useState<string | null>(null);
   const [providerSearch, setProviderSearch] = useState('');
@@ -111,6 +119,9 @@ export function ProvidersPage() {
         ? `mountyourclouds-${nextKind}-bucket`
         : '/MountYourClouds';
     setKind(nextKind);
+    if (meta.integrationStatus === 'api_restricted' || meta.requiresBackendProxy) {
+      setMountMode('simulated');
+    }
     setProviderCategoryTab(
       meta.category === 'Built-In Browser'
         ? 'Consumer & Personal Cloud'
@@ -136,7 +147,13 @@ export function ProvidersPage() {
 
     setEditingMount(null);
     setProviderSearch('');
-    applyDefaultsForKind(preselectedKind ?? 'mega');
+    setMountMode('simulated');
+    setAuthToken('');
+    setS3AccessKeyId('');
+    setS3SecretAccessKey('');
+    setWebdavUser('');
+    setWebdavPass('');
+    applyDefaultsForKind(preselectedKind ?? 'gdrive');
     setHandshakeStep(null);
     setModalOpen(true);
   };
@@ -145,6 +162,12 @@ export function ProvidersPage() {
     setEditingMount(mount);
     const k = mount.kind === 'local' ? 's3' : mount.kind;
     setKind(k);
+    setMountMode(mount.mode ?? 'simulated');
+    setAuthToken(mount.credentials?.oauthToken?.accessToken ?? '');
+    setS3AccessKeyId(mount.credentials?.s3Keys?.accessKeyId ?? '');
+    setS3SecretAccessKey(mount.credentials?.s3Keys?.secretAccessKey ?? '');
+    setWebdavUser(mount.credentials?.webdavAuth?.username ?? '');
+    setWebdavPass(mount.credentials?.webdavAuth?.password ?? '');
     setProviderCategoryTab(
       PROVIDER_KIND_META[k].category === 'Built-In Browser'
         ? 'Consumer & Personal Cloud'
@@ -268,13 +291,60 @@ export function ProvidersPage() {
     }
 
     try {
+      let credentials: ProviderCredentials | undefined = undefined;
+      if (mountMode === 'real') {
+        if (kind === 'gdrive') {
+          const token = authToken.trim() || settings.apiCredentials?.gdriveToken?.trim() || '';
+          if (!token) {
+            setFormError('Google Drive requires an OAuth 2.0 Access Token for Live API mode. Enter it below or save it in Workspace Settings.');
+            return;
+          }
+          credentials = { oauthToken: { accessToken: token } };
+        } else if (
+          ['s3', 'r2', 'b2', 'wasabi', 'do_spaces', 'scaleway', 'linode', 'vultr', 'storj', 'oracle_os'].includes(kind)
+        ) {
+          const key = s3AccessKeyId.trim() || settings.apiCredentials?.s3AccessKey?.trim() || '';
+          const sec = s3SecretAccessKey.trim() || settings.apiCredentials?.s3SecretKey?.trim() || '';
+          if (!key || !sec) {
+            setFormError('Access Key ID and Secret Access Key are required for Live S3 mode.');
+            return;
+          }
+          credentials = {
+            s3Keys: {
+              accessKeyId: key,
+              secretAccessKey: sec,
+              region: region || 'us-east-1',
+              bucket: bucket || 'mountyourclouds',
+              endpoint: endpoint || undefined,
+            },
+          };
+        } else if (
+          ['webdav', 'nextcloud', 'owncloud', 'synology', 'qnap', 'hetzner', 'koofr'].includes(kind)
+        ) {
+          credentials = {
+            webdavAuth: {
+              url: endpoint || meta.defaultEndpoint,
+              username: webdavUser.trim(),
+              password: webdavPass.trim(),
+              basePath: bucket || undefined,
+            },
+          };
+        }
+      }
+
       const start = performance.now();
-      setHandshakeStep(`Resolving ${meta.label} endpoint…`);
-      await new Promise((r) => setTimeout(r, 450));
-      setHandshakeStep('Authenticating session (simulated)…');
-      await new Promise((r) => setTimeout(r, 450));
+      setHandshakeStep(
+        mountMode === 'real'
+          ? `Connecting to live ${meta.label} API endpoint…`
+          : `Resolving ${meta.label} endpoint…`
+      );
+      await new Promise((r) => setTimeout(r, 350));
+      setHandshakeStep(
+        mountMode === 'real' ? 'Verifying authentication credentials…' : 'Authenticating session (simulated)…'
+      );
+      await new Promise((r) => setTimeout(r, 350));
       setHandshakeStep('Checking quota & read/write permissions…');
-      await new Promise((r) => setTimeout(r, 450));
+      await new Promise((r) => setTimeout(r, 350));
 
       if (settings.devSettings.offline) {
         throw new Error('Simulated offline mode is active — handshake failed.');
@@ -285,6 +355,8 @@ export function ProvidersPage() {
       if (editingMount) {
         await storageOrchestrator.updateMount(editingMount.id, {
           name: cleanName,
+          mode: mountMode,
+          credentials,
           endpoint,
           region,
           bucket,
@@ -292,7 +364,7 @@ export function ProvidersPage() {
           latencyMs: editingMount.kind === 'local' ? 4 : measuredLatency,
         });
         addToast({
-          title: `Updated mount "${cleanName}"`,
+          title: `Updated mount "${cleanName}" (${mountMode === 'real' ? 'Live API' : 'Simulated'})`,
           variant: 'success',
         });
       } else {
@@ -300,6 +372,8 @@ export function ProvidersPage() {
           {
             kind,
             name: cleanName,
+            mode: mountMode,
+            credentials,
             endpoint,
             region,
             bucket,
@@ -309,7 +383,7 @@ export function ProvidersPage() {
           measuredLatency
         );
         addToast({
-          title: `Connected simulated ${meta.shortLabel} mount "${cleanName}"`,
+          title: `Connected ${mountMode === 'real' ? 'Live API' : 'Simulated'} ${meta.shortLabel} mount "${cleanName}"`,
           variant: 'success',
         });
       }
@@ -449,9 +523,19 @@ export function ProvidersPage() {
                       <span className="px-2 py-0.5 text-[11px] font-mono bg-[#0E1017] border border-[#1E2230] text-[#F3F4F6] rounded">
                         {meta.shortLabel}
                       </span>
-                      {meta.isSimulated && (
+                      {mount.mode === 'real' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 rounded">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Live API
+                        </span>
+                      ) : (
                         <span className="px-2 py-0.5 text-[11px] font-mono bg-[#090A0F] border border-[#1E2230] text-[#818CF8] rounded">
                           Simulated
+                        </span>
+                      )}
+                      {meta.integrationStatus === 'api_restricted' && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-mono bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded">
+                          Restricted API
                         </span>
                       )}
                     </div>
@@ -606,7 +690,7 @@ export function ProvidersPage() {
               <h2 id="mount-modal-title" className="text-[15px] font-bold text-[#F3F4F6]">
                 {editingMount
                   ? `Edit Mount: ${editingMount.name}`
-                  : 'Connect Cloud Storage Provider (Simulated)'}
+                  : 'Connect Cloud Storage Provider'}
               </h2>
               <button
                 type="button"
@@ -627,7 +711,7 @@ export function ProvidersPage() {
                 <div className="space-y-2.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <label className="block text-xs font-medium text-[#8A94A6]">
-                      Select Cloud Storage Provider (21 available)
+                      Select Cloud Storage Provider (39 available)
                     </label>
                     {!providerSearch.trim() && (
                       <div className="inline-flex rounded bg-[#090A0F] p-0.5 border border-[#1E2230] text-[11px]">
@@ -662,7 +746,7 @@ export function ProvidersPage() {
                       type="text"
                       value={providerSearch}
                       onChange={(e) => setProviderSearch(e.target.value)}
-                      placeholder="Search providers (e.g. MEGA, Google, S3, Proton, Dropbox, R2...)"
+                      placeholder="Search 39 providers (e.g. Google Drive, S3, MEGA, Proton, Nextcloud, R2...)"
                       className="w-full pl-8 pr-3 py-1.5 rounded-md bg-[#0E1017] border border-[#1E2230] text-xs text-[#F3F4F6] placeholder-[#8A94A6]/60 focus:outline-none focus:border-[#4F46E5]"
                     />
                   </div>
@@ -704,6 +788,147 @@ export function ProvidersPage() {
                   )}
                 </div>
               )}
+
+              {/* Mode Segmented Switch: Real Live API vs Simulated */}
+              {editingMount?.kind !== 'local' && (
+                <div className="space-y-1.5 pt-1">
+                  <label className="block text-xs font-medium text-[#8A94A6]">
+                    Connection Engine Mode
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-[#0E1017] rounded-lg border border-[#1E2230]">
+                    <button
+                      type="button"
+                      onClick={() => setMountMode('simulated')}
+                      className={`py-2 px-3 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 tv-transition ${
+                        mountMode === 'simulated'
+                          ? 'bg-[#1E2230] text-[#818CF8] shadow border border-[#818CF8]/30 font-semibold'
+                          : 'text-[#8A94A6] hover:text-[#F3F4F6]'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#818CF8]" />
+                      <span>🧪 Simulated (Zero Keys)</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={PROVIDER_KIND_META[kind].integrationStatus === 'api_restricted'}
+                      onClick={() => setMountMode('real')}
+                      className={`py-2 px-3 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 tv-transition ${
+                        mountMode === 'real'
+                          ? 'bg-emerald-500/15 text-emerald-400 shadow border border-emerald-500/40 font-semibold'
+                          : 'text-[#8A94A6] hover:text-[#F3F4F6]'
+                      } ${PROVIDER_KIND_META[kind].integrationStatus === 'api_restricted' ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >
+                      <PlugZap className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>⚡ Live Cloud API</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Honesty Warning Banner for Restricted Providers */}
+              {PROVIDER_KIND_META[kind].apiNote && (
+                <div className="p-3 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <span className="font-semibold">{PROVIDER_KIND_META[kind].shortLabel} API Notice: </span>
+                    {PROVIDER_KIND_META[kind].apiNote}
+                  </div>
+                </div>
+              )}
+
+              {/* Live Credentials Input Fields when in Real API Mode */}
+              {mountMode === 'real' && kind === 'gdrive' && (
+                <div className="p-3.5 rounded-md bg-emerald-500/5 border border-emerald-500/20 space-y-2">
+                  <label htmlFor="gdrive-oauth-token" className="block text-xs font-medium text-emerald-300">
+                    Google Drive OAuth Access Token (Bearer)
+                  </label>
+                  <input
+                    id="gdrive-oauth-token"
+                    type="password"
+                    placeholder="ya29.a0Ac... (or leave blank to use token from Workspace Settings)"
+                    value={authToken}
+                    onChange={(e) => setAuthToken(e.target.value)}
+                    className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] font-mono text-xs text-[#F3F4F6]"
+                  />
+                  <p className="text-[11px] text-[#8A94A6]">
+                    Direct token handshake with official Google Drive REST API v3.
+                  </p>
+                </div>
+              )}
+
+              {mountMode === 'real' &&
+                ['s3', 'r2', 'b2', 'wasabi', 'do_spaces', 'scaleway', 'linode', 'vultr', 'storj', 'oracle_os'].includes(kind) && (
+                  <div className="p-3.5 rounded-md bg-emerald-500/5 border border-emerald-500/20 space-y-3">
+                    <span className="block text-xs font-medium text-emerald-300">
+                      S3 / Object Storage Credentials
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label htmlFor="s3-key-id" className="block text-[11px] text-[#8A94A6] mb-1">
+                          Access Key ID
+                        </label>
+                        <input
+                          id="s3-key-id"
+                          type="text"
+                          placeholder="AKIA... / R2 token ID"
+                          value={s3AccessKeyId}
+                          onChange={(e) => setS3AccessKeyId(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-md bg-[#0E1017] border border-[#1E2230] font-mono text-xs text-[#F3F4F6]"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="s3-secret" className="block text-[11px] text-[#8A94A6] mb-1">
+                          Secret Access Key
+                        </label>
+                        <input
+                          id="s3-secret"
+                          type="password"
+                          placeholder="Secret key..."
+                          value={s3SecretAccessKey}
+                          onChange={(e) => setS3SecretAccessKey(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-md bg-[#0E1017] border border-[#1E2230] font-mono text-xs text-[#F3F4F6]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {mountMode === 'real' &&
+                ['webdav', 'nextcloud', 'owncloud', 'synology', 'qnap', 'hetzner', 'koofr'].includes(kind) && (
+                  <div className="p-3.5 rounded-md bg-emerald-500/5 border border-emerald-500/20 space-y-3">
+                    <span className="block text-xs font-medium text-emerald-300">
+                      WebDAV Server Authentication
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label htmlFor="dav-user" className="block text-[11px] text-[#8A94A6] mb-1">
+                          Username
+                        </label>
+                        <input
+                          id="dav-user"
+                          type="text"
+                          placeholder="Username"
+                          value={webdavUser}
+                          onChange={(e) => setWebdavUser(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-md bg-[#0E1017] border border-[#1E2230] font-mono text-xs text-[#F3F4F6]"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="dav-pass" className="block text-[11px] text-[#8A94A6] mb-1">
+                          Password / App Token
+                        </label>
+                        <input
+                          id="dav-pass"
+                          type="password"
+                          placeholder="Password"
+                          value={webdavPass}
+                          onChange={(e) => setWebdavPass(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-md bg-[#0E1017] border border-[#1E2230] font-mono text-xs text-[#F3F4F6]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
