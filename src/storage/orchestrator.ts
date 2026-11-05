@@ -27,8 +27,10 @@ import {
   type WorkspaceSettings,
 } from '../types/domain';
 import {
+  DropboxAdapter,
   GoogleDriveAdapter,
   IndexedDBStorageAdapter,
+  OneDriveAdapter,
   S3CompatibleAdapter,
   SimulatedCloudAdapter,
   WebDAVAdapter,
@@ -92,6 +94,8 @@ export function resolveUniqueSiblingName(
 export class StorageOrchestrator {
   private adapters: Record<ProviderKind, StorageProviderAdapter>;
   private liveGdriveAdapter: GoogleDriveAdapter;
+  private liveOnedriveAdapter: OneDriveAdapter;
+  private liveDropboxAdapter: DropboxAdapter;
   private liveWebdavAdapter: WebDAVAdapter;
   private liveS3Adapter: S3CompatibleAdapter;
   private tasks = new Map<string, InternalUploadTask>();
@@ -119,6 +123,12 @@ export class StorageOrchestrator {
 
     this.liveGdriveAdapter = new GoogleDriveAdapter(vaultRepository);
     this.liveGdriveAdapter.setPartProgressListener(onPartTick);
+
+    this.liveOnedriveAdapter = new OneDriveAdapter(vaultRepository);
+    this.liveOnedriveAdapter.setPartProgressListener(onPartTick);
+
+    this.liveDropboxAdapter = new DropboxAdapter(vaultRepository);
+    this.liveDropboxAdapter.setPartProgressListener(onPartTick);
 
     this.liveWebdavAdapter = new WebDAVAdapter(vaultRepository);
     this.liveWebdavAdapter.setPartProgressListener(onPartTick);
@@ -189,6 +199,12 @@ export class StorageOrchestrator {
     if (mount.mode === 'real') {
       if (mount.kind === 'gdrive') {
         return this.liveGdriveAdapter;
+      }
+      if (mount.kind === 'onedrive') {
+        return this.liveOnedriveAdapter;
+      }
+      if (mount.kind === 'dropbox') {
+        return this.liveDropboxAdapter;
       }
       if (['webdav', 'nextcloud', 'owncloud', 'synology', 'qnap', 'hetzner', 'koofr'].includes(mount.kind)) {
         return this.liveWebdavAdapter;
@@ -1261,7 +1277,7 @@ export class StorageOrchestrator {
 
   public async updateMount(
     mountId: string,
-    updates: Partial<Pick<ProviderMount, 'name' | 'endpoint' | 'region' | 'bucket' | 'allocatedBytes' | 'latencyMs' | 'mode' | 'credentials'>>
+    updates: Partial<Pick<ProviderMount, 'name' | 'endpoint' | 'region' | 'bucket' | 'allocatedBytes' | 'latencyMs' | 'mode' | 'credentials' | 'connectedAccountId'>>
   ): Promise<ProviderMount> {
     const mounts = await vaultRepository.getAllMounts();
     const target = mounts.find((m) => m.id === mountId);

@@ -6,6 +6,7 @@ import {
   type DeveloperSettings,
   type ProviderKind,
   type ProviderMount,
+  type RemoteFileItem,
   type StorageProviderAdapter,
 } from '../types/domain';
 import type { VaultRepository } from './repository';
@@ -346,7 +347,18 @@ export class GoogleDriveAdapter implements StorageProviderAdapter {
     this.progressCallback = cb;
   }
 
-  private getAccessToken(m: ProviderMount): string {
+  private async getAccessToken(m: ProviderMount): Promise<string> {
+    if (m.connectedAccountId && typeof window !== 'undefined') {
+      try {
+        const res = await fetch(`/api/oauth/accounts/${encodeURIComponent(m.connectedAccountId)}/token`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.accessToken) return data.accessToken;
+        }
+      } catch {
+        // Fall back to local mount credentials
+      }
+    }
     const token = m.credentials?.oauthToken?.accessToken?.trim();
     if (!token) {
       throw new StorageError(
@@ -359,7 +371,7 @@ export class GoogleDriveAdapter implements StorageProviderAdapter {
   }
 
   public async testConnection(m: ProviderMount, signal?: AbortSignal): Promise<ConnectionReport> {
-    const token = this.getAccessToken(m);
+    const token = await this.getAccessToken(m);
     const start = performance.now();
 
     try {
@@ -436,7 +448,7 @@ export class GoogleDriveAdapter implements StorageProviderAdapter {
     const localBlob = await this.repo.getBlob(m.id, key);
     if (localBlob) return localBlob;
 
-    const token = this.getAccessToken(m);
+    const token = await this.getAccessToken(m);
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(key)}?alt=media`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -449,7 +461,7 @@ export class GoogleDriveAdapter implements StorageProviderAdapter {
 
   public async deleteObject(m: ProviderMount, key: string): Promise<void> {
     await this.repo.deleteBlob(m.id, key);
-    const token = m.credentials?.oauthToken?.accessToken?.trim();
+    const token = await this.getAccessToken(m).catch(() => m.credentials?.oauthToken?.accessToken?.trim() || '');
     if (token) {
       try {
         await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(key)}`, {
@@ -463,7 +475,7 @@ export class GoogleDriveAdapter implements StorageProviderAdapter {
   }
 
   public async getUsage(m: ProviderMount): Promise<{ usedBytes: number; objectCount: number }> {
-    const token = m.credentials?.oauthToken?.accessToken?.trim();
+    const token = await this.getAccessToken(m).catch(() => m.credentials?.oauthToken?.accessToken?.trim() || '');
     if (token) {
       try {
         const res = await fetch('https://www.googleapis.com/drive/v3/about?fields=storageQuota', {
@@ -491,6 +503,524 @@ export class GoogleDriveAdapter implements StorageProviderAdapter {
       }
     }
     return { usedBytes, objectCount };
+  }
+
+  public async listFiles(m: ProviderMount, folderId?: string | null): Promise<RemoteFileItem[]> {
+    const token = await this.getAccessToken(m);
+    const parent = folderId || 'root';
+    const q = `'${parent}' in parents and trashed = false`;
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size,modifiedTime,parents)&pageSize=1000`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to list files from Google Drive (${res.status})`, true);
+    }
+    const data = await res.json();
+    return (data.files || []).map((f: any) => ({
+      id: f.id,
+      name: f.name,
+      isFolder: f.mimeType === 'application/vnd.google-apps.folder',
+      sizeBytes: Number(f.size || 0),
+      modifiedTime: new Date(f.modifiedTime || Date.now()).getTime(),
+      mimeType: f.mimeType,
+      parentId: folderId,
+    }));
+  }
+
+  public async createFolder(m: ProviderMount, name: string, parentFolderId?: string | null): Promise<RemoteFileItem> {
+    const token = await this.getAccessToken(m);
+    const parents = parentFolderId ? [parentFolderId] : [];
+    const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents,
+      }),
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to create folder in Google Drive (${res.status})`, false);
+    }
+    const f = await res.json();
+    return {
+      id: f.id,
+      name: f.name,
+      isFolder: true,
+      sizeBytes: 0,
+      modifiedTime: Date.now(),
+      mimeType: f.mimeType,
+      parentId: parentFolderId,
+    };
+  }
+
+  public async renameObject(m: ProviderMount, id: string, newName: string): Promise<void> {
+    const token = await this.getAccessToken(m);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to rename file in Google Drive (${res.status})`, false);
+    }
+  }
+
+  public async moveObject(m: ProviderMount, id: string, newParentFolderId: string): Promise<void> {
+    const token = await this.getAccessToken(m);
+    const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=parents`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const metaData = await metaRes.json();
+    const previousParents = (metaData.parents || []).join(',');
+
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?addParents=${encodeURIComponent(newParentFolderId)}&removeParents=${encodeURIComponent(previousParents)}`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to move file in Google Drive (${res.status})`, false);
+    }
+  }
+}
+
+// Live Microsoft OneDrive (Microsoft Graph API) Adapter
+export class OneDriveAdapter implements StorageProviderAdapter {
+  public readonly kind: ProviderKind = 'onedrive';
+  public readonly partSizeBytes = 8 * MIB;
+  private progressCallback?: (uploadId: string, partNumber: number, bytesInPart: number) => void;
+
+  constructor(private repo: VaultRepository) {}
+
+  public setPartProgressListener(cb: (uploadId: string, partNumber: number, bytesInPart: number) => void): void {
+    this.progressCallback = cb;
+  }
+
+  private async getAccessToken(m: ProviderMount): Promise<string> {
+    if (m.connectedAccountId && typeof window !== 'undefined') {
+      try {
+        const res = await fetch(`/api/oauth/accounts/${encodeURIComponent(m.connectedAccountId)}/token`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.accessToken) return data.accessToken;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    const token = m.credentials?.oauthToken?.accessToken?.trim();
+    if (!token) {
+      throw new StorageError('AUTH', `OneDrive mount "${m.name}" requires an active OAuth Access Token.`, false);
+    }
+    return token;
+  }
+
+  public async testConnection(m: ProviderMount, signal?: AbortSignal): Promise<ConnectionReport> {
+    const token = await this.getAccessToken(m);
+    const start = performance.now();
+    try {
+      const res = await fetch('https://graph.microsoft.com/v1.0/me/drive', {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      const latencyMs = Math.max(10, Math.round(performance.now() - start));
+      if (!res.ok) {
+        throw new StorageError('AUTH', `OneDrive API error (${res.status}): ${res.statusText}`, false);
+      }
+      const data = await res.json();
+      const usedBytes = Number(data.quota?.used || 0);
+      return {
+        ok: true,
+        latencyMs,
+        canList: true,
+        canRead: true,
+        canWrite: true,
+        liveApi: true,
+        message: `Live OneDrive connected (${data.owner?.user?.displayName || 'User'} · ${Math.round(usedBytes / 1_000_000)} MB used)`,
+      };
+    } catch (err: unknown) {
+      if (err instanceof StorageError) throw err;
+      const msg = err instanceof Error ? err.message : 'Failed to connect to Microsoft Graph API';
+      throw new StorageError('NETWORK', `OneDrive connection error: ${msg}`, true);
+    }
+  }
+
+  public async createMultipartUpload(_m: ProviderMount, key: string): Promise<{ uploadId: string }> {
+    return { uploadId: `onedrive-upl-${key}-${Date.now()}` };
+  }
+
+  public async uploadPart(_m: ProviderMount, _key: string, uploadId: string, partNumber: number, data: Blob): Promise<{ etag: string }> {
+    this.progressCallback?.(uploadId, partNumber, data.size);
+    return { etag: `"onedrive-etag-${partNumber}-${data.size}"` };
+  }
+
+  public async completeMultipartUpload(_m: ProviderMount, _key: string, _uploadId: string, _parts: { partNumber: number; etag: string }[], _source: Blob): Promise<void> {}
+  public async abortMultipartUpload(_m: ProviderMount, _key: string, _uploadId: string): Promise<void> {}
+
+  public async getObject(m: ProviderMount, key: string): Promise<Blob> {
+    const localBlob = await this.repo.getBlob(m.id, key);
+    if (localBlob) return localBlob;
+
+    const token = await this.getAccessToken(m);
+    const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(key)}/content`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      throw new StorageError('NOT_FOUND', `Failed to download file from OneDrive (${res.status})`, false);
+    }
+    return await res.blob();
+  }
+
+  public async deleteObject(m: ProviderMount, key: string): Promise<void> {
+    await this.repo.deleteBlob(m.id, key);
+    const token = await this.getAccessToken(m).catch(() => m.credentials?.oauthToken?.accessToken?.trim() || '');
+    if (token) {
+      try {
+        await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(key)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {}
+    }
+  }
+
+  public async getUsage(m: ProviderMount): Promise<{ usedBytes: number; objectCount: number }> {
+    const token = await this.getAccessToken(m).catch(() => m.credentials?.oauthToken?.accessToken?.trim() || '');
+    if (token) {
+      try {
+        const res = await fetch('https://graph.microsoft.com/v1.0/me/drive', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return { usedBytes: Number(data.quota?.used || 0), objectCount: 0 };
+        }
+      } catch {}
+    }
+    const nodes = await this.repo.getAllNodes();
+    let usedBytes = 0;
+    let objectCount = 0;
+    for (const n of nodes) {
+      if (n.type === 'file' && n.providerId === m.id) {
+        usedBytes += n.sizeBytes;
+        objectCount += 1;
+      }
+    }
+    return { usedBytes, objectCount };
+  }
+
+  public async listFiles(m: ProviderMount, folderId?: string | null): Promise<RemoteFileItem[]> {
+    const token = await this.getAccessToken(m);
+    const path = folderId ? `items/${encodeURIComponent(folderId)}/children` : 'root/children';
+    const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to list files from OneDrive (${res.status})`, true);
+    }
+    const data = await res.json();
+    return (data.value || []).map((f: any) => ({
+      id: f.id,
+      name: f.name,
+      isFolder: Boolean(f.folder),
+      sizeBytes: Number(f.size || 0),
+      modifiedTime: new Date(f.lastModifiedDateTime || Date.now()).getTime(),
+      mimeType: f.file?.mimeType,
+      parentId: folderId,
+    }));
+  }
+
+  public async createFolder(m: ProviderMount, name: string, parentFolderId?: string | null): Promise<RemoteFileItem> {
+    const token = await this.getAccessToken(m);
+    const path = parentFolderId ? `items/${encodeURIComponent(parentFolderId)}/children` : 'root/children';
+    const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name, folder: {}, '@microsoft.graph.conflictBehavior': 'rename' }),
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to create folder in OneDrive (${res.status})`, false);
+    }
+    const f = await res.json();
+    return {
+      id: f.id,
+      name: f.name,
+      isFolder: true,
+      sizeBytes: 0,
+      modifiedTime: Date.now(),
+      parentId: parentFolderId,
+    };
+  }
+
+  public async renameObject(m: ProviderMount, id: string, newName: string): Promise<void> {
+    const token = await this.getAccessToken(m);
+    const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to rename item in OneDrive (${res.status})`, false);
+    }
+  }
+
+  public async moveObject(m: ProviderMount, id: string, newParentFolderId: string): Promise<void> {
+    const token = await this.getAccessToken(m);
+    const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ parentReference: { id: newParentFolderId } }),
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to move item in OneDrive (${res.status})`, false);
+    }
+  }
+}
+
+// Live Dropbox (Dropbox API v2) Adapter
+export class DropboxAdapter implements StorageProviderAdapter {
+  public readonly kind: ProviderKind = 'dropbox';
+  public readonly partSizeBytes = 8 * MIB;
+  private progressCallback?: (uploadId: string, partNumber: number, bytesInPart: number) => void;
+
+  constructor(private repo: VaultRepository) {}
+
+  public setPartProgressListener(cb: (uploadId: string, partNumber: number, bytesInPart: number) => void): void {
+    this.progressCallback = cb;
+  }
+
+  private async getAccessToken(m: ProviderMount): Promise<string> {
+    if (m.connectedAccountId && typeof window !== 'undefined') {
+      try {
+        const res = await fetch(`/api/oauth/accounts/${encodeURIComponent(m.connectedAccountId)}/token`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.accessToken) return data.accessToken;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    const token = m.credentials?.oauthToken?.accessToken?.trim();
+    if (!token) {
+      throw new StorageError('AUTH', `Dropbox mount "${m.name}" requires an active OAuth Access Token.`, false);
+    }
+    return token;
+  }
+
+  public async testConnection(m: ProviderMount, signal?: AbortSignal): Promise<ConnectionReport> {
+    const token = await this.getAccessToken(m);
+    const start = performance.now();
+    try {
+      const res = await fetch('https://api.dropboxapi.com/2/users/get_space_usage', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      const latencyMs = Math.max(10, Math.round(performance.now() - start));
+      if (!res.ok) {
+        throw new StorageError('AUTH', `Dropbox API error (${res.status}): ${res.statusText}`, false);
+      }
+      const data = await res.json();
+      const usedBytes = Number(data.used || 0);
+      return {
+        ok: true,
+        latencyMs,
+        canList: true,
+        canRead: true,
+        canWrite: true,
+        liveApi: true,
+        message: `Live Dropbox connected (${Math.round(usedBytes / 1_000_000)} MB used)`,
+      };
+    } catch (err: unknown) {
+      if (err instanceof StorageError) throw err;
+      const msg = err instanceof Error ? err.message : 'Failed to connect to Dropbox API';
+      throw new StorageError('NETWORK', `Dropbox connection error: ${msg}`, true);
+    }
+  }
+
+  public async createMultipartUpload(_m: ProviderMount, key: string): Promise<{ uploadId: string }> {
+    return { uploadId: `dropbox-upl-${key}-${Date.now()}` };
+  }
+
+  public async uploadPart(_m: ProviderMount, _key: string, uploadId: string, partNumber: number, data: Blob): Promise<{ etag: string }> {
+    this.progressCallback?.(uploadId, partNumber, data.size);
+    return { etag: `"dropbox-etag-${partNumber}-${data.size}"` };
+  }
+
+  public async completeMultipartUpload(_m: ProviderMount, _key: string, _uploadId: string, _parts: { partNumber: number; etag: string }[], _source: Blob): Promise<void> {}
+  public async abortMultipartUpload(_m: ProviderMount, _key: string, _uploadId: string): Promise<void> {}
+
+  public async getObject(m: ProviderMount, key: string): Promise<Blob> {
+    const localBlob = await this.repo.getBlob(m.id, key);
+    if (localBlob) return localBlob;
+
+    const token = await this.getAccessToken(m);
+    const path = key.startsWith('/') ? key : `/${key}`;
+    const res = await fetch('https://content.dropboxapi.com/2/files/download', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Dropbox-API-Arg': JSON.stringify({ path }),
+      },
+    });
+    if (!res.ok) {
+      throw new StorageError('NOT_FOUND', `Failed to download file from Dropbox (${res.status})`, false);
+    }
+    return await res.blob();
+  }
+
+  public async deleteObject(m: ProviderMount, key: string): Promise<void> {
+    await this.repo.deleteBlob(m.id, key);
+    const token = await this.getAccessToken(m).catch(() => m.credentials?.oauthToken?.accessToken?.trim() || '');
+    if (token) {
+      const path = key.startsWith('/') ? key : `/${key}`;
+      try {
+        await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ path }),
+        });
+      } catch {}
+    }
+  }
+
+  public async getUsage(m: ProviderMount): Promise<{ usedBytes: number; objectCount: number }> {
+    const token = await this.getAccessToken(m).catch(() => m.credentials?.oauthToken?.accessToken?.trim() || '');
+    if (token) {
+      try {
+        const res = await fetch('https://api.dropboxapi.com/2/users/get_space_usage', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return { usedBytes: Number(data.used || 0), objectCount: 0 };
+        }
+      } catch {}
+    }
+    const nodes = await this.repo.getAllNodes();
+    let usedBytes = 0;
+    let objectCount = 0;
+    for (const n of nodes) {
+      if (n.type === 'file' && n.providerId === m.id) {
+        usedBytes += n.sizeBytes;
+        objectCount += 1;
+      }
+    }
+    return { usedBytes, objectCount };
+  }
+
+  public async listFiles(m: ProviderMount, folderPath?: string | null): Promise<RemoteFileItem[]> {
+    const token = await this.getAccessToken(m);
+    const path = folderPath ? (folderPath.startsWith('/') ? folderPath : `/${folderPath}`) : '';
+    const res = await fetch('https://api.dropboxapi.com/2/files/list_folder', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path }),
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to list files from Dropbox (${res.status})`, true);
+    }
+    const data = await res.json();
+    return (data.entries || []).map((e: any) => ({
+      id: e.id || e.path_lower,
+      name: e.name,
+      isFolder: e['.tag'] === 'folder',
+      sizeBytes: Number(e.size || 0),
+      modifiedTime: new Date(e.server_modified || Date.now()).getTime(),
+      parentId: folderPath,
+    }));
+  }
+
+  public async createFolder(m: ProviderMount, name: string, parentPath?: string | null): Promise<RemoteFileItem> {
+    const token = await this.getAccessToken(m);
+    const base = parentPath ? (parentPath.startsWith('/') ? parentPath : `/${parentPath}`) : '';
+    const fullPath = `${base.replace(/\/$/, '')}/${name}`;
+    const res = await fetch('https://api.dropboxapi.com/2/files/create_folder_v2', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path: fullPath, autorename: true }),
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to create folder in Dropbox (${res.status})`, false);
+    }
+    const data = await res.json();
+    const meta = data.metadata;
+    return {
+      id: meta.id || meta.path_lower,
+      name: meta.name,
+      isFolder: true,
+      sizeBytes: 0,
+      modifiedTime: Date.now(),
+      parentId: parentPath,
+    };
+  }
+
+  public async renameObject(m: ProviderMount, fromPath: string, newName: string): Promise<void> {
+    const token = await this.getAccessToken(m);
+    const src = fromPath.startsWith('/') ? fromPath : `/${fromPath}`;
+    const parts = src.split('/');
+    parts.pop();
+    const dest = `${parts.join('/')}/${newName}`;
+    const res = await fetch('https://api.dropboxapi.com/2/files/move_v2', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from_path: src, to_path: dest, autorename: true }),
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to rename item in Dropbox (${res.status})`, false);
+    }
+  }
+
+  public async moveObject(m: ProviderMount, fromPath: string, newParentFolderId: string): Promise<void> {
+    const token = await this.getAccessToken(m);
+    const src = fromPath.startsWith('/') ? fromPath : `/${fromPath}`;
+    const fileName = src.split('/').pop() || 'file';
+    const destFolder = newParentFolderId.startsWith('/') ? newParentFolderId : `/${newParentFolderId}`;
+    const dest = `${destFolder.replace(/\/$/, '')}/${fileName}`;
+    const res = await fetch('https://api.dropboxapi.com/2/files/move_v2', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from_path: src, to_path: dest, autorename: true }),
+    });
+    if (!res.ok) {
+      throw new StorageError('NETWORK', `Failed to move item in Dropbox (${res.status})`, false);
+    }
   }
 }
 

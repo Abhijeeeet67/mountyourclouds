@@ -18,8 +18,10 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ConnectedAccountsManager } from '../components/accounts/ConnectedAccountsManager';
 import { MOUNTABLE_PROVIDER_KINDS, PROVIDER_KIND_META } from '../lib/constants';
 import { formatBytes, formatRelativeOrShortDate, SI_GB } from '../lib/format';
+import { startServerOAuthFlow } from '../lib/oauth';
 import { getEffectivePlans, normalizePlanId } from '../lib/pricing';
 import { storageOrchestrator } from '../storage/orchestrator';
 import { computeMountUsedBytesMap, useVaultStore } from '../store/useVaultStore';
@@ -65,6 +67,8 @@ export function ProvidersPage() {
   const mounts = useVaultStore((s) => s.mounts);
   const nodes = useVaultStore((s) => s.nodes);
   const settings = useVaultStore((s) => s.settings);
+  const connectedAccounts = useVaultStore((s) => s.connectedAccounts);
+  const fetchConnectedAccounts = useVaultStore((s) => s.fetchConnectedAccounts);
   const addToast = useVaultStore((s) => s.addToast);
   const setUpgradePromptReason = useVaultStore((s) => s.setUpgradePromptReason);
 
@@ -93,6 +97,8 @@ export function ProvidersPage() {
 
   // Dual-Mode & Real Cloud Credentials State
   const [mountMode, setMountMode] = useState<'real' | 'simulated'>('simulated');
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const [isOAuthing, setIsOAuthing] = useState(false);
   const [authToken, setAuthToken] = useState('');
   const [s3AccessKeyId, setS3AccessKeyId] = useState('');
   const [s3SecretAccessKey, setS3SecretAccessKey] = useState('');
@@ -122,6 +128,16 @@ export function ProvidersPage() {
     if (meta.integrationStatus === 'api_restricted' || meta.requiresBackendProxy) {
       setMountMode('simulated');
     }
+
+    // Auto-select connected OAuth account if one is present
+    const matchingAccounts = connectedAccounts.filter((a) => a.provider === nextKind && a.status === 'active');
+    if (matchingAccounts.length > 0) {
+      setSelectedAccountId(matchingAccounts[0].id);
+      setMountMode('real');
+    } else {
+      setSelectedAccountId('');
+    }
+
     setProviderCategoryTab(
       meta.category === 'Built-In Browser'
         ? 'Consumer & Personal Cloud'
@@ -148,6 +164,8 @@ export function ProvidersPage() {
     setEditingMount(null);
     setProviderSearch('');
     setMountMode('simulated');
+    setSelectedAccountId('');
+    setIsOAuthing(false);
     setAuthToken('');
     setS3AccessKeyId('');
     setS3SecretAccessKey('');
@@ -163,6 +181,8 @@ export function ProvidersPage() {
     const k = mount.kind === 'local' ? 's3' : mount.kind;
     setKind(k);
     setMountMode(mount.mode ?? 'simulated');
+    setSelectedAccountId(mount.connectedAccountId ?? '');
+    setIsOAuthing(false);
     setAuthToken(mount.credentials?.oauthToken?.accessToken ?? '');
     setS3AccessKeyId(mount.credentials?.s3Keys?.accessKeyId ?? '');
     setS3SecretAccessKey(mount.credentials?.s3Keys?.secretAccessKey ?? '');
@@ -293,13 +313,17 @@ export function ProvidersPage() {
     try {
       let credentials: ProviderCredentials | undefined = undefined;
       if (mountMode === 'real') {
-        if (kind === 'gdrive') {
-          const token = authToken.trim() || settings.apiCredentials?.gdriveToken?.trim() || '';
-          if (!token) {
-            setFormError('Google Drive requires an OAuth 2.0 Access Token for Live API mode. Enter it below or save it in Workspace Settings.');
-            return;
+        if (['gdrive', 'onedrive', 'dropbox', 'box', 'pcloud'].includes(kind)) {
+          if (selectedAccountId) {
+            // Associated with server-side encrypted OAuth account
+          } else {
+            const token = authToken.trim() || settings.apiCredentials?.[`${kind}Token`]?.trim() || '';
+            if (!token) {
+              setFormError(`${meta.shortLabel} requires selecting a connected OAuth account or entering an Access Token.`);
+              return;
+            }
+            credentials = { oauthToken: { accessToken: token } };
           }
-          credentials = { oauthToken: { accessToken: token } };
         } else if (
           ['s3', 'r2', 'b2', 'wasabi', 'do_spaces', 'scaleway', 'linode', 'vultr', 'storj', 'oracle_os'].includes(kind)
         ) {
@@ -357,6 +381,7 @@ export function ProvidersPage() {
           name: cleanName,
           mode: mountMode,
           credentials,
+          connectedAccountId: selectedAccountId || undefined,
           endpoint,
           region,
           bucket,
@@ -374,6 +399,7 @@ export function ProvidersPage() {
             name: cleanName,
             mode: mountMode,
             credentials,
+            connectedAccountId: selectedAccountId || undefined,
             endpoint,
             region,
             bucket,
@@ -443,6 +469,9 @@ export function ProvidersPage() {
           </button>
         </div>
       </div>
+
+      {/* Unified Connected Accounts & OAuth Management */}
+      <ConnectedAccountsManager />
 
       {/* Quick-Connect Catalog of 21 Mountable Cloud Providers */}
       <div className="rounded-lg bg-[#131620] border border-[#1E2230] p-4 space-y-3">
@@ -836,25 +865,122 @@ export function ProvidersPage() {
                 </div>
               )}
 
-              {/* Live Credentials Input Fields when in Real API Mode */}
-              {mountMode === 'real' && kind === 'gdrive' && (
-                <div className="p-3.5 rounded-md bg-emerald-500/5 border border-emerald-500/20 space-y-2">
-                  <label htmlFor="gdrive-oauth-token" className="block text-xs font-medium text-emerald-300">
-                    Google Drive OAuth Access Token (Bearer)
-                  </label>
-                  <input
-                    id="gdrive-oauth-token"
-                    type="password"
-                    placeholder="ya29.a0Ac... (or leave blank to use token from Workspace Settings)"
-                    value={authToken}
-                    onChange={(e) => setAuthToken(e.target.value)}
-                    className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] font-mono text-xs text-[#F3F4F6]"
-                  />
-                  <p className="text-[11px] text-[#8A94A6]">
-                    Direct token handshake with official Google Drive REST API v3.
-                  </p>
-                </div>
-              )}
+              {/* OAuth Account Picker & 1-Click Connect for OAuth Supported Providers */}
+              {mountMode === 'real' &&
+                ['gdrive', 'onedrive', 'dropbox', 'box', 'pcloud'].includes(kind) && (
+                  <div className="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="block text-xs font-semibold text-emerald-300">
+                        {PROVIDER_KIND_META[kind].shortLabel} OAuth 2.0 PKCE Authorization
+                      </span>
+                      <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                        Encrypted at Rest
+                      </span>
+                    </div>
+
+                    {connectedAccounts.filter((a) => a.provider === kind).length > 0 ? (
+                      <div className="space-y-2">
+                        <label htmlFor="oauth-account-picker" className="text-[11px] text-gray-400 block font-medium">
+                          Select Authorized Account:
+                        </label>
+                        <select
+                          id="oauth-account-picker"
+                          value={selectedAccountId}
+                          onChange={(e) => setSelectedAccountId(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-[#0E1017] border border-[#1E2230] text-xs text-[#F3F4F6]"
+                        >
+                          <option value="">-- Choose Account --</option>
+                          {connectedAccounts
+                            .filter((a) => a.provider === kind)
+                            .map((acc) => (
+                              <option key={acc.id} value={acc.id}>
+                                {acc.displayName} ({acc.email || acc.provider}) [{acc.status.toUpperCase()}]
+                              </option>
+                            ))}
+                        </select>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[11px] text-gray-400">Need another account?</span>
+                          <button
+                            type="button"
+                            disabled={isOAuthing}
+                            onClick={async () => {
+                              setIsOAuthing(true);
+                              try {
+                                const res = await startServerOAuthFlow(kind);
+                                await fetchConnectedAccounts();
+                                setSelectedAccountId(res.accountId);
+                                addToast({
+                                  title: 'Account Connected',
+                                  description: `Linked ${res.displayName} (${res.email || kind})`,
+                                  variant: 'success',
+                                });
+                              } catch (e) {
+                                setFormError(e instanceof Error ? e.message : 'OAuth authorization failed.');
+                              } finally {
+                                setIsOAuthing(false);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 rounded hover:bg-emerald-900/60 transition-colors"
+                          >
+                            {isOAuthing ? <Loader2 className="w-3 h-3 animate-spin" /> : <span>⚡</span>}
+                            <span>+ Connect New {PROVIDER_KIND_META[kind].shortLabel} Account</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-2 space-y-2.5">
+                        <p className="text-xs text-gray-300">
+                          Connect your {PROVIDER_KIND_META[kind].shortLabel} account with 1-click OAuth 2.0 PKCE.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={isOAuthing}
+                          onClick={async () => {
+                            setIsOAuthing(true);
+                            try {
+                              const res = await startServerOAuthFlow(kind);
+                              await fetchConnectedAccounts();
+                              setSelectedAccountId(res.accountId);
+                              addToast({
+                                title: 'Account Connected',
+                                description: `Linked ${res.displayName} (${res.email || kind})`,
+                                variant: 'success',
+                              });
+                            } catch (e) {
+                              setFormError(e instanceof Error ? e.message : 'OAuth authorization failed.');
+                            } finally {
+                              setIsOAuthing(false);
+                            }
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-emerald-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg shadow-sm transition-all"
+                        >
+                          {isOAuthing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>⚡</span>}
+                          <span>Log in to {PROVIDER_KIND_META[kind].shortLabel} via OAuth</span>
+                        </button>
+                        <p className="text-[11px] text-[#8A94A6]">
+                          Opens a secure authorization popup window and redirects straight back.
+                        </p>
+                      </div>
+                    )}
+
+                    <details className="pt-1 text-[11px] text-[#8A94A6]">
+                      <summary className="cursor-pointer hover:text-gray-300">
+                        Advanced: Use manual Bearer token
+                      </summary>
+                      <div className="pt-2">
+                        <input
+                          id="manual-oauth-token"
+                          type="password"
+                          placeholder="Bearer access token (optional override)"
+                          value={authToken}
+                          onChange={(e) => setAuthToken(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded bg-[#0E1017] border border-[#1E2230] font-mono text-xs text-[#F3F4F6]"
+                        />
+                      </div>
+                    </details>
+                  </div>
+                )}
 
               {mountMode === 'real' &&
                 ['s3', 'r2', 'b2', 'wasabi', 'do_spaces', 'scaleway', 'linode', 'vultr', 'storj', 'oracle_os'].includes(kind) && (

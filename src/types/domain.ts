@@ -70,12 +70,31 @@ export type AuthMethod =
   | 'restricted_sdk'
   | 'simulated';
 
+export type ConnectedAccountStatus = 'active' | 'expired' | 'error' | 'revoked' | 'disconnected';
+
+export interface ConnectedCloudAccount {
+  id: string;
+  userId: string;
+  provider: ProviderKind;
+  email?: string;
+  displayName: string;
+  avatarUrl?: string;
+  status: ConnectedAccountStatus;
+  scopes: string[];
+  tokenExpiresAt: number | null;
+  lastSyncedAt: number | null;
+  errorMessage?: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ProviderCredentials {
   oauthToken?: {
     accessToken: string;
     refreshToken?: string;
     expiresAt?: number;
     clientId?: string;
+    connectedAccountId?: string;
   };
   s3Keys?: {
     accessKeyId: string;
@@ -105,6 +124,7 @@ export interface ProviderMount {
   allocatedBytes: number;      // simulated or configured capacity in SI bytes
   latencyMs: number | null;    // from the last handshake
   zeroEgress: boolean;         // true for zero-egress providers
+  connectedAccountId?: string; // ID of the linked server-managed OAuth account
   credentials?: ProviderCredentials;
   lastSyncedAt: number | null;
   createdAt: number;
@@ -308,6 +328,16 @@ export class StorageError extends Error {
   }
 }
 
+export interface RemoteFileItem {
+  id: string;
+  name: string;
+  isFolder: boolean;
+  sizeBytes: number;
+  modifiedTime: number;
+  mimeType?: string;
+  parentId?: string | null;
+}
+
 export interface StorageProviderAdapter {
   readonly kind: ProviderKind;
   readonly partSizeBytes: number;
@@ -319,6 +349,10 @@ export interface StorageProviderAdapter {
   getObject(m: ProviderMount, key: string): Promise<Blob>;
   deleteObject(m: ProviderMount, key: string): Promise<void>;
   getUsage(m: ProviderMount): Promise<{ usedBytes: number; objectCount: number }>;
+  listFiles?(m: ProviderMount, folderId?: string | null): Promise<RemoteFileItem[]>;
+  createFolder?(m: ProviderMount, name: string, parentFolderId?: string | null): Promise<RemoteFileItem>;
+  renameObject?(m: ProviderMount, id: string, newName: string): Promise<void>;
+  moveObject?(m: ProviderMount, id: string, newParentFolderId: string): Promise<void>;
 }
 
 export interface ToastMessage {

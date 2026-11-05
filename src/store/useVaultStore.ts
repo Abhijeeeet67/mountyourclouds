@@ -17,6 +17,7 @@ import type {
   Account,
   ActivityEvent,
   BillingCycle,
+  ConnectedCloudAccount,
   DeveloperSettings,
   ExplorerViewMode,
   FileCategory,
@@ -39,6 +40,7 @@ interface VaultStoreState {
   versionChangeDetected: boolean;
 
   currentAccount: Account | null;
+  connectedAccounts: ConnectedCloudAccount[];
   mounts: ProviderMount[];
   nodes: VaultNode[];
   activity: ActivityEvent[];
@@ -128,6 +130,11 @@ interface VaultStoreState {
   generateDemoToken: (name: string) => Promise<string>;
   revokeDemoToken: (tokenId: string) => Promise<void>;
   resetSampleWorkspace: () => Promise<void>;
+
+  // Connected Cloud OAuth Accounts
+  fetchConnectedAccounts: () => Promise<void>;
+  disconnectCloudAccount: (id: string) => Promise<void>;
+  refreshCloudAccount: (id: string) => Promise<void>;
 }
 
 const DEFAULT_SETTINGS: WorkspaceSettings = {
@@ -167,6 +174,7 @@ export const useVaultStore = create<VaultStoreState>((set, get) => ({
   versionChangeDetected: false,
 
   currentAccount: null,
+  connectedAccounts: [],
   mounts: [],
   nodes: [],
   activity: [],
@@ -217,6 +225,7 @@ export const useVaultStore = create<VaultStoreState>((set, get) => ({
     });
 
     await get().refreshFromStorage();
+    await get().fetchConnectedAccounts();
     set({ initialized: true, initializing: false });
   },
 
@@ -795,6 +804,66 @@ export const useVaultStore = create<VaultStoreState>((set, get) => ({
       previewFileId: null,
     });
     await get().refreshFromStorage();
+  },
+
+  fetchConnectedAccounts: async () => {
+    try {
+      const res = await fetch('/api/oauth/accounts');
+      if (res.ok) {
+        const data = await res.json();
+        set({ connectedAccounts: data.accounts || [] });
+      }
+    } catch {
+      // Standalone browser mode or server offline
+    }
+  },
+
+  disconnectCloudAccount: async (id: string) => {
+    try {
+      const res = await fetch(`/api/oauth/accounts/${encodeURIComponent(id)}/disconnect`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to disconnect account');
+      }
+      await get().fetchConnectedAccounts();
+      get().addToast({
+        title: 'Account Disconnected',
+        description: 'Cloud account was disconnected and tokens securely removed.',
+        variant: 'default',
+      });
+    } catch (err) {
+      get().addToast({
+        title: 'Disconnection Failed',
+        description: err instanceof Error ? err.message : 'Could not disconnect account',
+        variant: 'error',
+      });
+    }
+  },
+
+  refreshCloudAccount: async (id: string) => {
+    try {
+      const res = await fetch(`/api/oauth/accounts/${encodeURIComponent(id)}/refresh`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to refresh account token');
+      }
+      await get().fetchConnectedAccounts();
+      get().addToast({
+        title: 'Token Refreshed',
+        description: 'Account authorization tokens successfully refreshed.',
+        variant: 'success',
+      });
+    } catch (err) {
+      get().addToast({
+        title: 'Token Refresh Failed',
+        description: err instanceof Error ? err.message : 'Could not refresh account token',
+        variant: 'error',
+      });
+    }
   },
 }));
 
