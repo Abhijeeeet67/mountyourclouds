@@ -123,42 +123,65 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
     dragDepthRef.current = 0;
     setIsDraggingOverWindow(false);
 
     const items = Array.from(e.dataTransfer.items || []);
-    const regularFiles: File[] = [];
-    let ignoredDirectoryCount = 0;
+    const allFiles: File[] = [];
+
+    const traverseFileTree = async (item: any): Promise<File[]> => {
+      const files: File[] = [];
+      if (!item) return files;
+      if (item.isFile) {
+        const file: File = await new Promise((resolve, reject) => {
+          item.file(resolve, reject);
+        });
+        files.push(file);
+      } else if (item.isDirectory) {
+        const dirReader = item.createReader();
+        const readEntries = (): Promise<any[]> => {
+          return new Promise((resolve, reject) => {
+            dirReader.readEntries(resolve, reject);
+          });
+        };
+        let entries = await readEntries();
+        while (entries.length > 0) {
+          for (const entry of entries) {
+            const subFiles = await traverseFileTree(entry);
+            files.push(...subFiles);
+          }
+          entries = await readEntries();
+        }
+      }
+      return files;
+    };
 
     if (items.length > 0) {
       for (const item of items) {
         if (item.kind === 'file') {
-          const entry = (item as unknown as { webkitGetAsEntry?: () => { isDirectory?: boolean } | null }).webkitGetAsEntry?.();
-          if (entry?.isDirectory) {
-            ignoredDirectoryCount++;
+          const entry = (item as unknown as { webkitGetAsEntry?: () => any }).webkitGetAsEntry?.();
+          if (entry) {
+            const files = await traverseFileTree(entry);
+            allFiles.push(...files);
           } else {
             const f = item.getAsFile();
-            if (f) regularFiles.push(f);
+            if (f) allFiles.push(f);
           }
         }
       }
     } else {
-      regularFiles.push(...Array.from(e.dataTransfer.files));
+      allFiles.push(...Array.from(e.dataTransfer.files));
     }
 
-    if (ignoredDirectoryCount > 0) {
+    if (allFiles.length > 0) {
       addToast({
-        title: 'Folder upload is not supported in this prototype',
-        description: `Ignored ${ignoredDirectoryCount} dropped folder(s). Please select individual files.`,
-        variant: 'warning',
+        title: `Loaded ${allFiles.length} file(s) from drop`,
+        variant: 'success',
       });
-    }
-
-    if (regularFiles.length > 0) {
-      openUploadModal(regularFiles);
+      openUploadModal(allFiles);
     }
   };
 

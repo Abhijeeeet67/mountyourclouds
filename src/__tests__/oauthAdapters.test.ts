@@ -19,8 +19,13 @@ describe('OAuth Storage Providers Real API Adapters', () => {
       allocatedBytes: 100 * 1024 * 1024 * 1024,
       latencyMs: 40,
       mode: 'real',
-      status: 'online',
+      status: 'connected',
       zeroEgress: true,
+      endpoint: null,
+      region: null,
+      bucket: null,
+      lastSyncedAt: Date.now(),
+      createdAt: Date.now(),
       credentials: {
         oauthToken: {
           accessToken: 'mock_test_access_token_123',

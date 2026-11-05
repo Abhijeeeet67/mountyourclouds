@@ -6,8 +6,11 @@ import {
   Globe,
   KeyRound,
   LogOut,
+  Monitor,
+  Moon,
   RotateCcw,
   Sliders,
+  Sun,
   Trash2,
   User,
 } from 'lucide-react';
@@ -15,12 +18,13 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatBytes, formatFullTimestamp } from '../lib/format';
 import { useVaultStore } from '../store/useVaultStore';
-import type { FailureRatePercent } from '../types/domain';
+import type { FailureRatePercent, ThemePreference } from '../types/domain';
 
 export function SettingsPage() {
   const navigate = useNavigate();
   const currentAccount = useVaultStore((s) => s.currentAccount);
   const settings = useVaultStore((s) => s.settings);
+  const setTheme = useVaultStore((s) => s.setTheme);
   const usingMemoryFallback = useVaultStore((s) => s.usingMemoryFallback);
   const updateProfile = useVaultStore((s) => s.updateProfile);
   const updateDeveloperSettings = useVaultStore((s) => s.updateDeveloperSettings);
@@ -37,7 +41,6 @@ export function SettingsPage() {
   const [resetting, setResetting] = useState(false);
   const [copiedTokenId, setCopiedTokenId] = useState<string | null>(null);
 
-  // In-App API & OAuth Configurator State
   const [gdriveClientId, setGdriveClientId] = useState(settings.apiCredentials?.gdriveClientId ?? '');
   const [gdriveToken, setGdriveToken] = useState(settings.apiCredentials?.gdriveToken ?? '');
   const [dropboxKey, setDropboxKey] = useState(settings.apiCredentials?.dropboxKey ?? '');
@@ -55,7 +58,7 @@ export function SettingsPage() {
       s3AccessKey: s3AccessKey.trim(),
       s3SecretKey: s3SecretKey.trim(),
     });
-    addToast({ title: 'API Credentials & OAuth Keys saved to browser vault', variant: 'success' });
+    addToast({ title: 'Cloud API Credentials saved to workspace vault', variant: 'success' });
   };
 
   const handleCopyToken = async (id: string, text: string) => {
@@ -86,13 +89,12 @@ export function SettingsPage() {
     if (success) {
       setCopiedTokenId(id);
       setTimeout(() => setCopiedTokenId((curr) => (curr === id ? null : curr)), 2000);
-      addToast({ title: 'Copied demo token to clipboard', variant: 'success' });
+      addToast({ title: 'Copied personal access token to clipboard', variant: 'success' });
     } else {
       addToast({ title: 'Failed to copy token to clipboard', variant: 'error' });
     }
   };
 
-  // Browser Storage Estimate & Persisted status (§7)
   const [storageEstimate, setStorageEstimate] = useState<{
     usage: number;
     quota: number;
@@ -131,7 +133,7 @@ export function SettingsPage() {
     e.preventDefault();
     try {
       await updateProfile(displayName);
-      addToast({ title: 'Updated local demo profile', variant: 'success' });
+      addToast({ title: 'Updated workspace profile', variant: 'success' });
     } catch (err) {
       addToast({
         title: 'Could not update profile',
@@ -146,31 +148,82 @@ export function SettingsPage() {
     const val = await generateDemoToken(tokenName);
     setTokenName('');
     addToast({
-      title: 'Generated demo API token',
-      description: `Token ${val.slice(0, 14)}… created locally.`,
+      title: 'Generated personal access token',
+      description: `Token ${val.slice(0, 14)}… created.`,
       variant: 'success',
     });
   };
 
+  const currentTheme: ThemePreference = settings.theme ?? 'dark';
+
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-4xl w-full mx-auto">
+    <div className="p-4 lg:p-8 space-y-6 max-w-4xl w-full mx-auto">
       <div>
-        <h1 className="text-xl font-bold text-[#F3F4F6]">Workspace Settings</h1>
-        <p className="text-xs text-[#8A94A6] mt-0.5">
-          Manage your local demo profile, demo API tokens, IndexedDB browser storage status, and adapter fault simulation.
+        <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
+          Workspace Settings
+        </h1>
+        <p className="text-xs text-[#6E6E73] dark:text-[#86868B] mt-0.5">
+          Appearance, account identity, cloud API credentials, and storage diagnostics.
         </p>
       </div>
 
-      {/* 1. Profile Settings (§7) */}
-      <section className="rounded-lg bg-[#131620] border border-[#1E2230] p-5 space-y-4">
+      {/* 0. Appearance & Theme Selector */}
+      <section className="apple-card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+              Appearance & Theme
+            </h2>
+            <p className="text-xs text-[#6E6E73] dark:text-[#86868B] mt-0.5">
+              Choose between Apple-inspired Light Mode, Dark Mode, or automatic system appearance.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {(
+            [
+              { id: 'light', label: 'Light', icon: Sun },
+              { id: 'dark', label: 'Dark', icon: Moon },
+              { id: 'system', label: 'System', icon: Monitor },
+            ] as const
+          ).map((item) => {
+            const Icon = item.icon;
+            const isSelected = currentTheme === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTheme(item.id)}
+                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-medium border tv-transition ${
+                  isSelected
+                    ? 'bg-[#0071E3] text-white border-[#0071E3] shadow-xs'
+                    : 'bg-[#F5F5F7] dark:bg-[#0B0C10] text-[#1D1D1F] dark:text-[#F5F5F7] border-black/[0.08] dark:border-white/[0.08] hover:border-[#0071E3]/50'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 1. Profile Settings */}
+      <section className="apple-card p-5 space-y-4">
         <div className="flex items-center gap-2">
-          <User className="w-4 h-4 text-[#818CF8]" />
-          <h2 className="text-[15px] font-bold text-[#F3F4F6]">Local Demo Profile</h2>
+          <User className="w-4 h-4 text-[#0071E3] dark:text-[#0A84FF]" />
+          <h2 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+            Account Profile
+          </h2>
         </div>
 
         <form onSubmit={handleSaveProfile} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="profile-name" className="block text-xs font-medium text-[#8A94A6] mb-1">
+            <label
+              htmlFor="profile-name"
+              className="block text-xs font-medium text-[#6E6E73] dark:text-[#86868B] mb-1"
+            >
               Display Name
             </label>
             <input
@@ -178,27 +231,30 @@ export function SettingsPage() {
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6]"
+              className="w-full px-3.5 py-2 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.08] dark:border-white/[0.1] text-[13px] text-[#1D1D1F] dark:text-[#F5F5F7]"
             />
           </div>
 
           <div>
-            <label htmlFor="profile-email" className="block text-xs font-medium text-[#8A94A6] mb-1">
-              Local Account Email
+            <label
+              htmlFor="profile-email"
+              className="block text-xs font-medium text-[#6E6E73] dark:text-[#86868B] mb-1"
+            >
+              Account Email
             </label>
             <input
               id="profile-email"
               type="email"
               disabled
               value={currentAccount?.email ?? ''}
-              className="w-full px-3 py-2 rounded-md bg-[#090A0F] border border-[#1E2230] text-[13px] text-[#8A94A6] font-mono cursor-not-allowed"
+              className="w-full px-3.5 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.06] text-[13px] text-[#6E6E73] dark:text-[#86868B] font-mono cursor-not-allowed"
             />
           </div>
 
           <div className="sm:col-span-2 flex justify-end">
             <button
               type="submit"
-              className="px-4 py-1.5 rounded-md bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-medium"
+              className="px-4 py-1.5 rounded-lg bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-medium"
             >
               Save Profile
             </button>
@@ -206,28 +262,32 @@ export function SettingsPage() {
         </form>
       </section>
 
-      {/* API Credentials & Live OAuth Configurator */}
-      <section className="rounded-lg bg-[#131620] border border-[#1E2230] p-5 space-y-4">
+      {/* 2. API Credentials & Live OAuth Configurator */}
+      <section className="apple-card p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Globe className="w-4 h-4 text-[#10B981]" />
-            <h2 className="text-[15px] font-bold text-[#F3F4F6]">
-              Live Cloud API Credentials & OAuth Keys
+            <Globe className="w-4 h-4 text-[#28CD41]" />
+            <h2 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+              Direct Cloud API Credentials & Overrides
             </h2>
           </div>
-          <span className="text-[11px] font-mono text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/30 px-2 py-0.5 rounded">
-            Hybrid Real Cloud Engine
+          <span className="text-[11px] font-mono text-[#28CD41] bg-[#28CD41]/10 px-2 py-0.5 rounded-md">
+            Live Cloud Engine
           </span>
         </div>
 
-        <p className="text-xs text-[#8A94A6]">
-          Configure real cloud credentials to connect live cloud storage. If omitted, MountYourClouds seamlessly operates with deterministic local simulators.
+        <p className="text-xs text-[#6E6E73] dark:text-[#86868B]">
+          Server-managed OAuth 2.0 PKCE is recommended on the Cloud Providers page. You can also
+          supply direct client tokens or S3/R2 keys below.
         </p>
 
         <form onSubmit={handleSaveApiCredentials} className="space-y-4 pt-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="gdrive-client-id" className="block text-xs font-medium text-[#8A94A6] mb-1">
+              <label
+                htmlFor="gdrive-client-id"
+                className="block text-xs font-medium text-[#6E6E73] dark:text-[#86868B] mb-1"
+              >
                 Google Drive OAuth Client ID
               </label>
               <input
@@ -236,13 +296,16 @@ export function SettingsPage() {
                 placeholder="apps.googleusercontent.com"
                 value={gdriveClientId}
                 onChange={(e) => setGdriveClientId(e.target.value)}
-                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.08] dark:border-white/[0.1] text-[13px] font-mono"
               />
             </div>
 
             <div>
-              <label htmlFor="gdrive-token" className="block text-xs font-medium text-[#8A94A6] mb-1">
-                Google Drive Access Token (Direct Live API)
+              <label
+                htmlFor="gdrive-token"
+                className="block text-xs font-medium text-[#6E6E73] dark:text-[#86868B] mb-1"
+              >
+                Google Drive Access Token (Optional Override)
               </label>
               <input
                 id="gdrive-token"
@@ -250,12 +313,15 @@ export function SettingsPage() {
                 placeholder="ya29.a0Ac..."
                 value={gdriveToken}
                 onChange={(e) => setGdriveToken(e.target.value)}
-                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.08] dark:border-white/[0.1] text-[13px] font-mono"
               />
             </div>
 
             <div>
-              <label htmlFor="dropbox-key" className="block text-xs font-medium text-[#8A94A6] mb-1">
+              <label
+                htmlFor="dropbox-key"
+                className="block text-xs font-medium text-[#6E6E73] dark:text-[#86868B] mb-1"
+              >
                 Dropbox App Key / Client ID
               </label>
               <input
@@ -264,13 +330,16 @@ export function SettingsPage() {
                 placeholder="dropbox-app-key"
                 value={dropboxKey}
                 onChange={(e) => setDropboxKey(e.target.value)}
-                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.08] dark:border-white/[0.1] text-[13px] font-mono"
               />
             </div>
 
             <div>
-              <label htmlFor="onedrive-client-id" className="block text-xs font-medium text-[#8A94A6] mb-1">
-                Microsoft OneDrive / Graph App Client ID
+              <label
+                htmlFor="onedrive-client-id"
+                className="block text-xs font-medium text-[#6E6E73] dark:text-[#86868B] mb-1"
+              >
+                Microsoft OneDrive / Graph Client ID
               </label>
               <input
                 id="onedrive-client-id"
@@ -278,12 +347,15 @@ export function SettingsPage() {
                 placeholder="azure-app-client-id"
                 value={onedriveClientId}
                 onChange={(e) => setOnedriveClientId(e.target.value)}
-                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.08] dark:border-white/[0.1] text-[13px] font-mono"
               />
             </div>
 
             <div>
-              <label htmlFor="s3-access-key" className="block text-xs font-medium text-[#8A94A6] mb-1">
+              <label
+                htmlFor="s3-access-key"
+                className="block text-xs font-medium text-[#6E6E73] dark:text-[#86868B] mb-1"
+              >
                 AWS S3 / Cloudflare R2 Access Key ID
               </label>
               <input
@@ -292,12 +364,15 @@ export function SettingsPage() {
                 placeholder="AKIA... or R2 token ID"
                 value={s3AccessKey}
                 onChange={(e) => setS3AccessKey(e.target.value)}
-                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.08] dark:border-white/[0.1] text-[13px] font-mono"
               />
             </div>
 
             <div>
-              <label htmlFor="s3-secret-key" className="block text-xs font-medium text-[#8A94A6] mb-1">
+              <label
+                htmlFor="s3-secret-key"
+                className="block text-xs font-medium text-[#6E6E73] dark:text-[#86868B] mb-1"
+              >
                 AWS S3 / Cloudflare R2 Secret Access Key
               </label>
               <input
@@ -306,7 +381,7 @@ export function SettingsPage() {
                 placeholder="Secret key..."
                 value={s3SecretKey}
                 onChange={(e) => setS3SecretKey(e.target.value)}
-                className="w-full px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] font-mono"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.08] dark:border-white/[0.1] text-[13px] font-mono"
               />
             </div>
           </div>
@@ -314,7 +389,7 @@ export function SettingsPage() {
           <div className="flex justify-end pt-2">
             <button
               type="submit"
-              className="px-4 py-1.5 rounded-md bg-[#10B981] hover:bg-[#059669] text-white text-xs font-medium"
+              className="px-4 py-1.5 rounded-lg bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-medium"
             >
               Save Cloud API Credentials
             </button>
@@ -322,28 +397,25 @@ export function SettingsPage() {
         </form>
       </section>
 
-      {/* 2. Developer Simulation Panel (§4, §7: failure rate 0/10/50% and Offline toggle) */}
-      <section className="rounded-lg bg-[#131620] border border-[#1E2230] p-5 space-y-4">
+      {/* 3. Developer Diagnostics Panel */}
+      <section className="apple-card p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-[#818CF8]" />
-            <h2 className="text-[15px] font-bold text-[#F3F4F6]">
-              Developer Panel (Simulated Adapter Fault Injection)
+            <Sliders className="w-4 h-4 text-[#0071E3] dark:text-[#0A84FF]" />
+            <h2 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+              Network Resilience & Fault Testing
             </h2>
           </div>
-          <span className="text-[11px] font-mono text-[#8A94A6] bg-[#0E1017] border border-[#1E2230] px-2 py-0.5 rounded">
-            Applies to S3, R2, GCS, WebDAV
-          </span>
         </div>
 
-        <p className="text-xs text-[#8A94A6]">
-          Test multipart upload retries (<code className="font-mono text-[#F3F4F6]">500ms · 2^n</code> backoff) and error states by injecting transient network faults or toggling simulated offline mode.
+        <p className="text-xs text-[#6E6E73] dark:text-[#86868B]">
+          Verify multipart upload exponential backoff (<code className="font-mono">500ms · 2^n</code>)
+          and error recovery on sandbox mounts.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-          {/* Failure Rate Selector (0 / 10 / 50 %) */}
-          <div className="p-3.5 rounded-md bg-[#0E1017] border border-[#1E2230] space-y-2">
-            <span className="block text-xs font-medium text-[#F3F4F6]">
+          <div className="p-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.06] dark:border-white/[0.08] space-y-2">
+            <span className="block text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">
               Simulated Part Failure Rate
             </span>
             <div role="group" aria-label="Simulated failure rate" className="grid grid-cols-3 gap-2">
@@ -356,14 +428,14 @@ export function SettingsPage() {
                     onClick={() => {
                       updateDeveloperSettings({ failureRate: rate });
                       addToast({
-                        title: `Simulated failure rate set to ${rate}%`,
+                        title: `Fault injection rate set to ${rate}%`,
                         variant: rate > 0 ? 'warning' : 'default',
                       });
                     }}
-                    className={`py-1.5 rounded text-xs font-mono font-medium border ${
+                    className={`py-1.5 rounded-lg text-xs font-mono font-medium border ${
                       active
-                        ? 'bg-[#4F46E5] border-[#818CF8] text-white'
-                        : 'bg-[#131620] border-[#1E2230] text-[#8A94A6] hover:text-[#F3F4F6]'
+                        ? 'bg-[#0071E3] border-[#0071E3] text-white'
+                        : 'bg-white dark:bg-[#15171E] border-black/[0.08] dark:border-white/[0.08] text-[#6E6E73]'
                     }`}
                   >
                     {rate}%
@@ -373,12 +445,13 @@ export function SettingsPage() {
             </div>
           </div>
 
-          {/* Offline Mode Toggle */}
-          <div className="p-3.5 rounded-md bg-[#0E1017] border border-[#1E2230] flex items-center justify-between gap-3">
+          <div className="p-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-medium text-[#F3F4F6]">Simulated Offline Mode</p>
-              <p className="text-[11px] text-[#8A94A6] mt-0.5">
-                Throws retryable <code className="font-mono">NETWORK</code> errors on cloud adapters
+              <p className="text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">
+                Offline Network Simulation
+              </p>
+              <p className="text-[11px] text-[#6E6E73] dark:text-[#86868B] mt-0.5">
+                Tests retryable network errors
               </p>
             </div>
             <button
@@ -389,16 +462,14 @@ export function SettingsPage() {
                 const next = !settings.devSettings.offline;
                 updateDeveloperSettings({ offline: next });
                 addToast({
-                  title: next
-                    ? 'Simulated Offline Mode enabled'
-                    : 'Simulated Offline Mode disabled',
+                  title: next ? 'Offline simulation enabled' : 'Offline simulation disabled',
                   variant: next ? 'warning' : 'success',
                 });
               }}
-              className={`px-3 py-1.5 rounded text-xs font-mono font-medium border ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium border ${
                 settings.devSettings.offline
-                  ? 'bg-[#F43F5E] border-[#F43F5E] text-white'
-                  : 'bg-[#131620] border-[#1E2230] text-[#8A94A6] hover:text-[#F3F4F6]'
+                  ? 'bg-[#FF3B30] border-[#FF3B30] text-white'
+                  : 'bg-white dark:bg-[#15171E] border-black/[0.08] dark:border-white/[0.08] text-[#6E6E73]'
               }`}
             >
               {settings.devSettings.offline ? 'OFFLINE ON' : 'OFFLINE OFF'}
@@ -407,14 +478,15 @@ export function SettingsPage() {
         </div>
       </section>
 
-      {/* 3. Demo API Tokens (§7: generate random, copy, revoke; labelled demo) */}
-      <section className="rounded-lg bg-[#131620] border border-[#1E2230] p-5 space-y-4">
+      {/* 4. Personal Access Tokens */}
+      <section className="apple-card p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-[#818CF8]" />
-            <h2 className="text-[15px] font-bold text-[#F3F4F6]">Demo API Tokens</h2>
+            <KeyRound className="w-4 h-4 text-[#0071E3] dark:text-[#0A84FF]" />
+            <h2 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+              CLI & Automation Tokens
+            </h2>
           </div>
-          <span className="text-xs font-mono text-[#8A94A6]">Demo only — local browser state</span>
         </div>
 
         <form onSubmit={handleCreateToken} className="flex items-center gap-2">
@@ -422,21 +494,23 @@ export function SettingsPage() {
             type="text"
             value={tokenName}
             onChange={(e) => setTokenName(e.target.value)}
-            placeholder="Token label (e.g. Rclone Local Script Demo)"
-            aria-label="Demo token name"
-            className="flex-1 px-3 py-2 rounded-md bg-[#0E1017] border border-[#1E2230] text-[13px] text-[#F3F4F6] placeholder-[#8A94A6]"
+            placeholder="Token label (e.g. Rclone Sync Script)"
+            aria-label="Token name"
+            className="flex-1 px-3.5 py-2 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.08] dark:border-white/[0.1] text-[13px]"
           />
           <button
             type="submit"
-            className="px-3.5 py-2 rounded-md bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-medium whitespace-nowrap"
+            className="px-4 py-2 rounded-xl bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-medium whitespace-nowrap"
           >
-            Generate Demo Token
+            Generate Token
           </button>
         </form>
 
-        <div className="divide-y divide-[#1E2230] border border-[#1E2230] rounded-md bg-[#0E1017]">
+        <div className="divide-y divide-black/[0.06] dark:divide-white/[0.08] border border-black/[0.06] dark:border-white/[0.08] rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10]">
           {settings.demoTokens.length === 0 ? (
-            <p className="p-4 text-xs text-[#8A94A6] text-center">No demo API tokens active.</p>
+            <p className="p-4 text-xs text-[#6E6E73] dark:text-[#86868B] text-center">
+              No personal access tokens generated.
+            </p>
           ) : (
             settings.demoTokens.map((tok) => (
               <div
@@ -444,13 +518,10 @@ export function SettingsPage() {
                 className="px-4 py-3 flex items-center justify-between gap-3 text-xs"
               >
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-[#F3F4F6]">{tok.name}</span>
-                    <span className="px-1.5 py-0.5 text-[10px] font-mono bg-[#131620] border border-[#1E2230] text-[#8A94A6] rounded">
-                      Demo
-                    </span>
-                  </div>
-                  <p className="font-mono text-[#8A94A6] mt-0.5 truncate tabular-nums">
+                  <span className="font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">
+                    {tok.name}
+                  </span>
+                  <p className="font-mono text-[#6E6E73] dark:text-[#86868B] mt-0.5 truncate tabular-nums">
                     {tok.tokenValue} · Created {formatFullTimestamp(tok.createdAt)}
                   </p>
                 </div>
@@ -459,12 +530,12 @@ export function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => handleCopyToken(tok.id, tok.tokenValue)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#131620] hover:bg-[#1E2230] border border-[#1E2230] text-[#F3F4F6]"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-[#15171E] border border-black/[0.08] dark:border-white/[0.08]"
                   >
                     {copiedTokenId === tok.id ? (
                       <>
-                        <Check className="w-3 h-3 text-[#10B981]" />
-                        <span className="text-[#10B981]">Copied</span>
+                        <Check className="w-3 h-3 text-[#28CD41]" />
+                        <span className="text-[#28CD41]">Copied</span>
                       </>
                     ) : (
                       <>
@@ -477,9 +548,9 @@ export function SettingsPage() {
                     type="button"
                     onClick={async () => {
                       await revokeDemoToken(tok.id);
-                      addToast({ title: `Revoked demo token "${tok.name}"`, variant: 'default' });
+                      addToast({ title: `Revoked token "${tok.name}"`, variant: 'default' });
                     }}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#131620] hover:bg-[#F43F5E]/20 border border-[#1E2230] text-[#F43F5E]"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-[#15171E] border border-black/[0.08] dark:border-white/[0.08] text-[#FF3B30]"
                   >
                     <Trash2 className="w-3 h-3" />
                     <span>Revoke</span>
@@ -491,46 +562,46 @@ export function SettingsPage() {
         </div>
       </section>
 
-      {/* 4. Browser Storage Status & Workspace Reset / Sign Out (§3, §7) */}
-      <section className="rounded-lg bg-[#131620] border border-[#1E2230] p-5 space-y-4">
+      {/* 5. Browser Storage Status & Workspace Reset / Sign Out */}
+      <section className="apple-card p-5 space-y-4">
         <div className="flex items-center gap-2">
-          <Database className="w-4 h-4 text-[#818CF8]" />
-          <h2 className="text-[15px] font-bold text-[#F3F4F6]">
-            Browser IndexedDB Storage Status
+          <Database className="w-4 h-4 text-[#0071E3] dark:text-[#0A84FF]" />
+          <h2 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+            Local Vault & Session Controls
           </h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs tabular-nums">
-          <div className="p-3 rounded bg-[#0E1017] border border-[#1E2230]">
-            <p className="text-[#8A94A6] font-sans">Database Engine</p>
-            <p className="text-[#F3F4F6] font-bold mt-1">
+          <div className="p-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.06] dark:border-white/[0.08]">
+            <p className="text-[#6E6E73] dark:text-[#86868B] font-sans">Database Engine</p>
+            <p className="text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold mt-1">
               {usingMemoryFallback ? 'In-Memory Fallback' : 'IndexedDB (mountyourclouds_db)'}
             </p>
           </div>
-          <div className="p-3 rounded bg-[#0E1017] border border-[#1E2230]">
-            <p className="text-[#8A94A6] font-sans">Browser Estimate (Usage / Quota)</p>
-            <p className="text-[#F3F4F6] font-bold mt-1">
+          <div className="p-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.06] dark:border-white/[0.08]">
+            <p className="text-[#6E6E73] dark:text-[#86868B] font-sans">Local Cache Usage</p>
+            <p className="text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold mt-1">
               {storageEstimate
                 ? `${formatBytes(storageEstimate.usage)} / ${formatBytes(storageEstimate.quota)}`
                 : 'Calculating…'}
             </p>
           </div>
-          <div className="p-3 rounded bg-[#0E1017] border border-[#1E2230]">
-            <p className="text-[#8A94A6] font-sans">Persistent Storage Granted</p>
-            <p className="text-[#F3F4F6] font-bold mt-1">
-              {storageEstimate ? (storageEstimate.persisted ? 'Yes' : 'No (Best-effort)') : '—'}
+          <div className="p-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#0B0C10] border border-black/[0.06] dark:border-white/[0.08]">
+            <p className="text-[#6E6E73] dark:text-[#86868B] font-sans">Persistent Storage</p>
+            <p className="text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold mt-1">
+              {storageEstimate ? (storageEstimate.persisted ? 'Granted' : 'Best-effort') : '—'}
             </p>
           </div>
         </div>
 
-        <div className="pt-3 border-t border-[#1E2230] flex flex-wrap items-center justify-between gap-3">
+        <div className="pt-3 border-t border-black/[0.06] dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setConfirmResetOpen(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md bg-[#F59E0B]/15 hover:bg-[#F59E0B]/25 border border-[#F59E0B]/40 text-xs font-medium text-[#F59E0B]"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#FF9F0A]/12 hover:bg-[#FF9F0A]/20 border border-[#FF9F0A]/30 text-xs font-medium text-[#D97706] dark:text-[#FFD60A]"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset to sample workspace</span>
+            <span>Reset Local Sample Data</span>
           </button>
 
           <button
@@ -539,7 +610,7 @@ export function SettingsPage() {
               await signOut();
               navigate('/auth');
             }}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md bg-[#0E1017] hover:bg-[#F43F5E]/20 border border-[#1E2230] text-xs font-medium text-[#F43F5E]"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#FF3B30]/12 hover:bg-[#FF3B30]/20 border border-[#FF3B30]/30 text-xs font-medium text-[#FF3B30]"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign out</span>
@@ -547,10 +618,9 @@ export function SettingsPage() {
         </div>
       </section>
 
-      {/* Reset Confirmation Modal (§3) */}
       {confirmResetOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="reset-modal-title"
@@ -558,15 +628,19 @@ export function SettingsPage() {
             if (e.key === 'Escape') setConfirmResetOpen(false);
           }}
         >
-          <div className="w-full max-w-md rounded-lg bg-[#131620] border border-[#1E2230] p-5 space-y-4">
+          <div className="w-full max-w-md apple-card p-5 space-y-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-[#FF9F0A] shrink-0 mt-0.5" />
               <div>
-                <h2 id="reset-modal-title" className="text-[15px] font-bold text-[#F3F4F6]">
-                  Reset to deterministic sample workspace?
+                <h2
+                  id="reset-modal-title"
+                  className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]"
+                >
+                  Reset local sample data?
                 </h2>
-                <p className="text-xs text-[#8A94A6] mt-1 leading-relaxed">
-                  This clears all uploaded files, custom folders, mount changes, and activity events in IndexedDB, preserving your local account and re-running the deterministic seed (<code className="font-mono">mulberry32(42)</code>).
+                <p className="text-xs text-[#6E6E73] dark:text-[#86868B] mt-1 leading-relaxed">
+                  This resets the local IndexedDB files and folders back to the initial workspace
+                  state while preserving your account and connected OAuth clouds.
                 </p>
               </div>
             </div>
@@ -576,7 +650,7 @@ export function SettingsPage() {
                 type="button"
                 disabled={resetting}
                 onClick={() => setConfirmResetOpen(false)}
-                className="px-3.5 py-1.5 rounded-md border border-[#1E2230] text-xs font-medium text-[#8A94A6] hover:text-[#F3F4F6]"
+                className="px-3.5 py-1.5 rounded-lg border border-black/[0.08] dark:border-white/[0.1] text-xs font-medium"
               >
                 Cancel
               </button>
@@ -593,9 +667,9 @@ export function SettingsPage() {
                     variant: 'success',
                   });
                 }}
-                className="px-4 py-1.5 rounded-md bg-[#F59E0B] hover:bg-[#D97706] text-black text-xs font-bold disabled:opacity-50"
+                className="px-4 py-1.5 rounded-lg bg-[#FF9F0A] hover:bg-[#D97706] text-black text-xs font-semibold disabled:opacity-50"
               >
-                {resetting ? 'Resetting…' : 'Reset Workspace'}
+                {resetting ? 'Resetting…' : 'Reset Data'}
               </button>
             </div>
           </div>

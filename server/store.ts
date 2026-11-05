@@ -131,8 +131,8 @@ export class ServerAccountStore {
     tokens: {
       accessToken: string;
       refreshToken?: string;
-      tokenExpiresAt: number | null;
-      scopes: string[];
+      tokenExpiresAt?: number | null;
+      scopes?: string[];
     }
   ): Promise<void> {
     this.ensureLoaded();
@@ -151,8 +151,8 @@ export class ServerAccountStore {
       provider: account.provider,
       accessToken: tokens.accessToken,
       encryptedRefreshToken,
-      tokenExpiresAt: tokens.tokenExpiresAt,
-      scopes: tokens.scopes,
+      tokenExpiresAt: tokens.tokenExpiresAt !== undefined ? tokens.tokenExpiresAt : (account.tokenExpiresAt ?? null),
+      scopes: tokens.scopes !== undefined ? tokens.scopes : (account.scopes ?? []),
       updatedAt: Date.now(),
     });
 

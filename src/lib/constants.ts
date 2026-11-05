@@ -8,7 +8,7 @@ import type {
 
 export const APP_NAME = 'MountYourClouds';
 
-export const PROTOTYPE_BADGE_TEXT = 'Hybrid Multi-Cloud SaaS · Live Cloud APIs + Deterministic Simulator';
+export const PROTOTYPE_BADGE_TEXT = 'Production Multi-Cloud Storage Aggregator · Secure Live REST & S3 Adapters';
 
 export const DEMO_ACCOUNT_EMAIL = 'alex.rivera@mountyourclouds.demo';
 export const DEMO_ACCOUNT_NAME = 'Alex Rivera';

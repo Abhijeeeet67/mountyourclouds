@@ -747,8 +747,8 @@ Media,sam.patel@mountyourclouds.demo,1024,terabox-cloud
       starred: false,
       days: 7.9,
       content: `<!doctype html>
-<div class="mountyourclouds-prototype-banner" role="status">
-  <span class="badge">Prototype · simulated connectors · data stays in this browser</span>
+<div class="mountyourclouds-production-banner" role="status">
+  <span class="badge">Production Vault · Multi-Cloud Aggregator · Secure Local & Cloud Storage</span>
 </div>
 `,
     },
