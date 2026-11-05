@@ -1,225 +1,428 @@
-# TeleVault — AI Studio Build Prompt (v2)
+# TeleVault — Google AI Studio Master Build Prompt (v3 Production Spec)
 
-*Front-end prototype spec · every cloud connector is simulated · replaces implementation\_plan.md*
+> **Prompt Instructions for Google AI Studio / Gemini Code Assist:**
+> Act as a Principal Full-Stack Engineer and SaaS Architect. Build **TeleVault**, a modern, dark-mode, keyboard-first multi-cloud file management SaaS application, as a **client-only single-page application (SPA)**: no backend server, no external API keys required, and all user data persisted locally in browser IndexedDB.
+>
+> Follow this specification strictly. All code must be complete, runnable, type-safe (TypeScript strict mode, no `any`), and contain zero placeholders or missing imports.
 
-You are a senior front-end engineer. Build **TeleVault**, a dark-mode, keyboard-first multi-cloud file manager, as a **client-only single-page app**: no backend, and no network calls except Google Fonts. Follow this spec exactly. Where it is silent, pick the simplest option that keeps behavior correct and leave a one-line code comment explaining the choice.
+---
 
-## 0. Ground rules
+## 0. Product Vision & Honesty Ground Rules
 
-- Complete, runnable code only: no TODOs, placeholders or “rest unchanged”. TypeScript strict, no `any`.
-- Build in the phase order of §13 and keep the app runnable after every phase. If output space runs short, finish phases 1–5 completely rather than all phases shallowly.
-- **Be honest in the product.** Show a permanent badge “Prototype · simulated connectors · data stays in this browser” and a “Simulated” tag on every non-local mount. Never imply real cloud access, encryption, billing or email. Never use “production-grade”, “SLA”, “SOC 2” or “data sovereignty” in copy.
-- Keep the name in one constant: `APP_NAME = 'TeleVault'`.
-- **Out of scope:** sharing and ACLs, audit log, client-side encryption, real authentication, real cloud calls, real payments, folder upload, i18n.
+TeleVault is a zero-egress multi-cloud file aggregator that unifies storage across 21 cloud storage providers alongside a local IndexedDB vault.
 
-## 1. Stack and routes
+### Core Honesty & Prototype Rules
+1. **Permanent Transparency Strip**: Render a permanent top bar on the landing page and app shell:
+   `"Prototype · simulated connectors · data stays in this browser"`
+2. **Simulated Mount Badges**: Every non-local storage mount must display an explicit `Simulated` tag and realistic latency metrics.
+3. **No False Claims**: Never claim real remote server encryption, active cloud API connections, production SLAs, or real email transmission.
+4. **Brand Constant**: The application name is defined in one central constant: `export const APP_NAME = 'TeleVault';`.
+5. **Units**: Use strict **SI standard decimal units** everywhere in user interfaces and pricing formulas (`1 KB = 1,000 B`, `1 MB = 1,000,000 B`, `1 GB = 10^9 B`, `1 TB = 10^12 B`). Binary `MiB` multiples (`1024 * 1024`) are used strictly for internal multipart chunk slicing (`partSizeBytes`).
 
-React 18, TypeScript, Tailwind CSS, `react-router-dom` (HashRouter), `zustand`, `idb`, `@tanstack/react-virtual`, `cmdk`, `recharts`, `lucide-react`, `react-markdown`. No other dependencies; if one is unavailable, write a small replacement instead of dropping the feature. Lazy-load routes.
+---
 
-Routes: `#/` landing · `#/auth` · `#/app/overview` · `#/app/files/:folderId?` · `#/app/starred` · `#/app/trash` · `#/app/providers` · `#/app/analytics` · `#/app/pricing` · `#/app/settings`. Everything under `/app` redirects to `#/auth` without a session. Folder navigation updates the URL; an unknown or trashed `folderId` redirects to root with a toast.
+## 1. Tech Stack & Dependencies
 
-## 2. Data model
+```json
+{
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.13.2",
+    "cmdk": "^1.1.1",
+    "idb": "^8.0.3",
+    "lucide-react": "^1.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-is": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.1.5",
+    "recharts": "^2.15.1",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.13.1",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^5.0.0",
+    "esbuild": "^0.28.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "~5.8.0",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}
+```
+
+> [!CRITICAL]
+> - `react-is` (`^19.0.0`) must be explicitly installed to prevent runtime import failures with Recharts on React 19.
+> - `vite.config.ts` must use `import.meta.dirname` (avoid deprecated `__dirname`) and implement `manualChunks` splitting (`vendor-react`, `vendor-charts`, `vendor-icons`) to keep production bundle chunks `< 380 kB`.
+
+---
+
+## 2. Complete Domain Data Models
 
 ```ts
-type ProviderKind = 'local' | 's3' | 'r2' | 'gcs' | 'webdav';
-type MountStatus = 'connected' | 'syncing' | 'disconnected' | 'error';
+// 21 Cloud Storage Providers + Local IndexedDB Vault
+export type ProviderKind =
+  | 'local'
+  | 'mega'
+  | 'terabox'
+  | 'gdrive'
+  | 'dropbox'
+  | 'onedrive'
+  | 'box'
+  | 'pcloud'
+  | 'icloud'
+  | 'proton'
+  | 'sync'
+  | 'kdrive'
+  | 'nextcloud'
+  | 's3'
+  | 'r2'
+  | 'gcs'
+  | 'azure'
+  | 'b2'
+  | 'wasabi'
+  | 'do_spaces'
+  | 'hetzner'
+  | 'webdav';
 
-interface ProviderMount {
-  id: string;                  // 'local-vault' is built in: cannot be disconnected or removed
+export type MountStatus = 'connected' | 'syncing' | 'disconnected' | 'error';
+
+export interface ProviderMount {
+  id: string;                  // 'local-vault' is the built-in IndexedDB mount (cannot be removed)
   kind: ProviderKind;
-  name: string;                // unique, case-insensitive
-  endpoint: string | null; region: string | null; bucket: string | null;
+  name: string;                // Unique display name (case-insensitive)
+  endpoint: string | null;
+  region: string | null;
+  bucket: string | null;
   status: MountStatus;
-  allocatedBytes: number;      // simulated capacity chosen by the user
-  latencyMs: number | null;    // from the last handshake
-  zeroEgress: boolean;         // true for r2
-  lastSyncedAt: number | null; createdAt: number;
-}                              // usedBytes is DERIVED from files, never stored
-
-interface NodeBase {
-  id: string; parentId: string | null; name: string; starred: boolean;
-  trashedAt: number | null;    // set only on the node the user trashed; descendants inherit
-  trashedFromParentId: string | null;
-  createdAt: number; updatedAt: number;
+  allocatedBytes: number;      // Simulated capacity (SI decimal bytes)
+  latencyMs: number | null;
+  zeroEgress: boolean;         // True for R2, B2, Wasabi, Hetzner, Local
+  lastSyncedAt: number | null;
+  createdAt: number;
 }
-interface FolderNode extends NodeBase { type: 'folder' }  // virtual; may hold files from any mount
-interface FileNode extends NodeBase {
-  type: 'file'; providerId: string; mimeType: string; extension: string;
-  sizeBytes: number; checksumSha256: string | null;
-  hasBlob: boolean;            // false = placeholder asset: size is claimed, no bytes exist
+
+export interface NodeBase {
+  id: string;
+  parentId: string | null;
+  name: string;
+  starred: boolean;
+  trashedAt: number | null;    // Non-null only on explicitly trashed root; descendants inherit
+  trashedFromParentId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface FolderNode extends NodeBase {
+  type: 'folder';              // Virtual folders can group files across any cloud mount
+}
+
+export interface FileNode extends NodeBase {
+  type: 'file';
+  providerId: string;
+  mimeType: string;
+  extension: string;
+  sizeBytes: number;
+  checksumSha256: string | null;
+  hasBlob: boolean;            // true = real bytes stored in IndexedDB; false = quota placeholder
   hasThumb: boolean;
 }
-type VaultNode = FolderNode | FileNode;
 
-type UploadStatus = 'queued' | 'uploading' | 'paused' | 'completed' | 'cancelled' | 'error';
-interface UploadJob {          // in memory only; speed and ETA are computed, never persisted
-  id: string; fileName: string; fileSize: number;
-  targetFolderId: string | null; targetProviderId: string;
-  status: UploadStatus; partSizeBytes: number; totalParts: number; completedParts: number;
-  uploadedBytes: number; speedBytesPerSec: number; etaSeconds: number | null;
-  errorMessage: string | null; createdAt: number;
+export type VaultNode = FolderNode | FileNode;
+
+export type UploadStatus = 'queued' | 'uploading' | 'paused' | 'completed' | 'cancelled' | 'error';
+
+export interface UploadJob {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  targetFolderId: string | null;
+  targetProviderId: string;
+  status: UploadStatus;
+  partSizeBytes: number;
+  totalParts: number;
+  completedParts: number;
+  uploadedBytes: number;
+  speedBytesPerSec: number;
+  etaSeconds: number | null;
+  errorMessage: string | null;
+  createdAt: number;
 }
-interface ActivityEvent { id?: number; ts: number; kind: 'ingress' | 'egress'; bytes: number; providerId: string }
-interface Account { email: string; displayName: string; passwordHash: string; salt: string; createdAt: number }
-interface SubscriptionState { planId: 'starter' | 'pro' | 'enterprise'; billingCycle: 'monthly' | 'annual'; invoices: InvoiceRecord[] }
-interface InvoiceRecord { id: string; issuedAt: number; description: string; amountUsd: number } // demo only
+
+export interface PersistedInFlightUpload {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  targetFolderId: string | null;
+  targetProviderId: string;
+  partSizeBytes: number;
+  totalParts: number;
+  createdAt: number;
+}
+
+export interface ActivityEvent {
+  id?: number;
+  ts: number;
+  kind: 'ingress' | 'egress';
+  bytes: number;
+  providerId: string;
+}
+
+export interface Account {
+  email: string;
+  displayName: string;
+  passwordHash: string;        // PBKDF2-SHA256 hex digest
+  salt: string;                // 16-byte random hex salt
+  createdAt: number;
+}
+
+export type PlanId = 'free' | 'pro' | 'ultra';
+export type BillingCycle = 'monthly' | 'annual';
+
+export interface PlanDefinition {
+  id: PlanId;
+  name: string;
+  tagline: string;
+  audience: string;
+  baseMonthlyInr: number;      // Free: ₹0, Pro: ₹199, Ultra: ₹499
+  annualDiscountPercent: number;// 20% discount (Pro: ₹159/mo, Ultra: ₹399/mo)
+  maxMounts: number;           // Free: 2, Pro: 7, Ultra: 20
+  dailyTransferLimitGB: number;// Free: 5 GB, Pro: 50 GB, Ultra: 250 GB
+  monthlyTransferLimitGB: number;// Free: 25 GB, Pro: 500 GB, Ultra: 2,500 GB
+  maxBulkFiles: number;        // Free: 3, Pro: 25, Ultra: 100
+  priorityLabel: string;
+  badgeText?: string;
+  isPopular?: boolean;
+  features: string[];
+  allowBulkOperations: boolean;
+  allowAdvancedSearch: boolean;
+  allowAutoOrganize: boolean;
+  allowScheduledTransfers: boolean;
+  allowCrossCloudSync: boolean;
+}
 ```
 
-Design decisions:
+---
 
-- Folders are virtual app metadata and can hold files from different mounts. A file stays on the mount it was uploaded to, so moving never crosses providers.
-- A file’s `id` is its immutable object key. Rename, move, star and trash change metadata only and never touch stored bytes.
-- Mount `usedBytes` = sum of `sizeBytes` of that mount’s files, trashed ones included until permanently deleted.
-- Units are SI everywhere: 1 GB = 10⁹ bytes, 1 TB = 1,000 GB.
+## 3. Storage Layer & Atomic IndexedDB Engine
 
-## 3. Persistence (IndexedDB `televault_db`, via `idb`)
+Database name: `televault_db` (version 1) using `idb`.
 
-Stores: `meta` (key-value: schemaVersion, seeded, settings), `accounts`, `mounts`, `nodes` (index `parentId`), `blobs` (key `[mountId, objectKey]` → `Blob`), `thumbs` (key nodeId → `Blob`), `activity` (autoIncrement, index `ts`).
+### Object Stores
+1. `meta`: Stores system metadata (`schemaVersion`, `seeded`, `settings`, `activeUploads`).
+2. `accounts`: Keyed by `email` (PBKDF2-SHA256 hashed credentials).
+3. `mounts`: Keyed by `id`.
+4. `nodes`: Keyed by `id`, index on `parentId`.
+5. `blobs`: Compound key `[providerId, objectKey]` storing raw binary `Blob` objects.
+6. `thumbs`: Keyed by `nodeId` storing 320px PNG thumbnail `Blob` objects.
+7. `activity`: Auto-incrementing ID, index on `ts`.
 
-- Store real `Blob`s, never base64 data URLs, and never inside node records, so listing a folder stays cheap.
-- Versioned `upgrade` handler (one `case` per version). On `versionchange`, close the connection and ask the user to reload.
-- Write-through: update UI state only after the transaction commits. Commit an upload’s blob, node and activity event in one transaction.
-- Catch `QuotaExceededError` and surface it as a QUOTA\_EXCEEDED error. Before each upload check `navigator.storage.estimate()`. Call `navigator.storage.persist?.()` at startup inside try/catch.
-- If IndexedDB cannot open (private mode, blocked in a preview iframe), fall back to an in-memory repository and show an amber banner: “Storage unavailable — changes won’t survive a reload.”
-- `BroadcastChannel('televault')` makes other open tabs refresh after a mutation.
-- On startup: seed once (§12), then permanently delete anything trashed more than 30 days ago.
-- Settings → “Reset to sample workspace” clears everything except the account, then reseeds.
+### Critical Architecture Rules
+1. **Single-Transaction Commit (Eliminating Double-Write Bug)**:
+   - Adapters (`IndexedDBStorageAdapter` and `SimulatedCloudAdapter`) buffer nothing and do **not** invoke `repo.putBlob` inside `completeMultipartUpload`.
+   - File metadata, binary blob, thumbnail, activity log, and remaining in-flight tasks are committed together in **one atomic IndexedDB transaction** via `vaultRepository.commitCompletedUpload`:
+     ```ts
+     const tx = db.transaction(['nodes', 'blobs', 'thumbs', 'activity', 'meta'], 'readwrite');
+     await tx.objectStore('nodes').put(fileNode);
+     if (blob) await tx.objectStore('blobs').put(blob, [fileNode.providerId, fileNode.id]);
+     if (thumbBlob) await tx.objectStore('thumbs').put(thumbBlob, fileNode.id);
+     await tx.objectStore('activity').add(activity);
+     await tx.objectStore('meta').put(remainingInFlight, 'activeUploads');
+     await tx.done;
+     ```
+2. **Cycle-Safe Tree Traversal**:
+   - `collectSubtreeIds` must maintain a `visited = new Set<string>()` to prevent infinite recursion on malformed or circular parent hierarchies:
+     ```ts
+     export function collectSubtreeIds(rootId: string, allNodes: VaultNode[]): { nodeIds: string[]; fileNodes: FileNode[] } {
+       const childrenMap = new Map<string | null, VaultNode[]>();
+       for (const n of allNodes) {
+         const list = childrenMap.get(n.parentId) ?? [];
+         list.push(n);
+         childrenMap.set(n.parentId, list);
+       }
+       const nodeIds: string[] = [];
+       const fileNodes: FileNode[] = [];
+       const visited = new Set<string>();
+       const queue: string[] = [rootId];
+       const rootNode = allNodes.find((n) => n.id === rootId);
+       if (rootNode?.type === 'file') fileNodes.push(rootNode);
 
-## 4. Adapters and orchestrator
+       while (queue.length > 0) {
+         const currId = queue.shift()!;
+         if (visited.has(currId)) continue;
+         visited.add(currId);
+         nodeIds.push(currId);
+         for (const k of childrenMap.get(currId) ?? []) {
+           if (!visited.has(k.id)) {
+             queue.push(k.id);
+             if (k.type === 'file') fileNodes.push(k);
+           }
+         }
+       }
+       return { nodeIds, fileNodes };
+     }
+     ```
+3. **Effective Trash Cascade**:
+   - `isEffectivelyTrashed(node, map)` traverses `parentId` chains. If any ancestor has `trashedAt !== null`, the node is effectively trashed. Starred, Explorer non-trash views, overview lists, and search queries must filter with `!isEffectivelyTrashed(node, map)`.
+4. **Cross-Tab Synchronization**:
+   - Broadcast mutations using `BroadcastChannel('televault')` so changes in one browser tab instantly update all other open tabs.
+5. **In-Memory Fallback**:
+   - If IndexedDB access fails (e.g. restrictive third-party iframes or incognito sandbox restrictions), fall back seamlessly to an in-memory repository and display an amber banner: *"Storage unavailable in private/restricted mode — changes won't survive a reload."*
 
-The UI never imports an adapter. It calls `StorageOrchestrator`, which combines the metadata repository with a registry mapping `mount.kind` to an adapter.
+---
 
-```ts
-interface ConnectionReport { ok: boolean; latencyMs: number; canList: boolean; canRead: boolean; canWrite: boolean; message: string }
-type StorageErrorCode = 'NETWORK' | 'AUTH' | 'QUOTA_EXCEEDED' | 'NOT_FOUND' | 'DISCONNECTED' | 'ABORTED';
-class StorageError extends Error { constructor(public code: StorageErrorCode, message: string, public retryable: boolean) { super(message); } }
+## 4. Multi-Cloud Adapters & Storage Orchestrator
 
-interface StorageProviderAdapter {
-  readonly kind: ProviderKind;
-  readonly partSizeBytes: number;
-  testConnection(m: ProviderMount, signal?: AbortSignal): Promise<ConnectionReport>;
-  createMultipartUpload(m: ProviderMount, key: string, contentType: string): Promise<{ uploadId: string }>;
-  uploadPart(m: ProviderMount, key: string, uploadId: string, partNumber: number, data: Blob, signal: AbortSignal): Promise<{ etag: string }>;
-  completeMultipartUpload(m: ProviderMount, key: string, uploadId: string, parts: { partNumber: number; etag: string }[], source: Blob): Promise<void>;
-  abortMultipartUpload(m: ProviderMount, key: string, uploadId: string): Promise<void>;
-  getObject(m: ProviderMount, key: string): Promise<Blob>;
-  deleteObject(m: ProviderMount, key: string): Promise<void>;
-  getUsage(m: ProviderMount): Promise<{ usedBytes: number; objectCount: number }>;
-}
+The UI components never call storage adapters directly; all operations pass through the singleton `StorageOrchestrator`.
+
+### Adapter Specification
+- `IndexedDBStorageAdapter` (`kind = 'local'`, chunk size = 1 MiB): Real browser storage.
+- `SimulatedCloudAdapter`: Powers all 21 external cloud providers with realistic latency profiles (e.g., S3 ~80ms, R2 ~60ms, Google Drive ~110ms, WebDAV ~140ms with ±30% jitter) and bandwidth profiles (10–35 MB/s).
+- **Developer Fault Simulation**: Supports configurable transient network failure rates (0%, 10%, 50%) and an "Offline Mode" switch in Settings.
+
+### Orchestrator Core Responsibilities
+- **Recursive Cross-Cloud Transfers**:
+  When migrating files/folders across mounts via `transferBetweenClouds(nodeIds, targetMountId)`, expand any selected folders into their descendant files using `collectSubtreeIds`. Validate available space on the target mount, deduct quota, migrate underlying blobs, update `providerId`, and record both egress and ingress activity events.
+- **Quota & Tier Authorization**:
+  Before starting an upload, download, or cross-cloud transfer, enforce the current plan limits (`enforceTransferQuotaAuthorization`) against the 24-hour rolling daily quota and 30-day rolling monthly quota.
+- **Multipart Upload Pipeline**:
+  Maximum concurrency: 3 simultaneous tasks. Smooth progress ticks every 100ms. Non-blocking WebCrypto SHA-256 calculation for files ≤ 64 MB. 320px thumbnail rasterization on HTML5 Canvas.
+- **Failed Upload Dismissal**:
+  Support `dismissUpload(jobId)` and `clearCompletedUploads(includeErrors: boolean = false)` so that failed or reload-interrupted tasks can be dismissed from the Transfer Tray.
+
+---
+
+## 5. UI/UX Design System & Global Interaction
+
+- **Dark Theme Tokens**:
+  - App Canvas: `#090A0F`
+  - Workspace Background: `#0E1017`
+  - Surface Cards: `#131620`
+  - Borders/Dividers: `#1E2230`
+  - Primary Accent: `#4F46E5` (hover `#4338CA`, active `#818CF8`)
+  - Status Colors: `#10B981` (Connected/Completed), `#F59E0B` (Syncing/Paused), `#F43F5E` (Failed/Disconnected)
+  - Typography: `DM Sans` for UI copy and headings; `JetBrains Mono` with `tabular-nums` for file sizes, metrics, checksums, and speeds.
+
+### Critical Keyboard & Explorer Event Guidelines
+- **Zero Listener Thrashing**:
+  In `ExplorerPage`, tie the global `keydown` event listener to `[]` dependencies by reading volatile state (`visibleNodes`, `selectedNodeIds`, `focusedNodeId`, `mode`, `mountMap`) through stable React refs (`useRef`). Never rebind window listeners on keystrokes or selection changes.
+- **Context Menu Clamping**:
+  Clamp right-click coordinates:
+  ```tsx
+  style={{
+    top: Math.max(8, Math.min(window.innerHeight - 260, contextMenu.y)),
+    left: Math.max(8, Math.min(window.innerWidth - 200, contextMenu.x)),
+  }}
+  ```
+- **Keyboard Shortcuts**:
+  - `↑` / `↓` or `J` / `K`: Move focus and selection across virtualized rows.
+  - `Enter`: Open folder or open file inspector.
+  - `Space`: Toggle file preview modal.
+  - `Ctrl/⌘ + A`: Select all visible items.
+  - `F2`: Trigger rename dialog.
+  - `S`: Toggle star on selected item(s).
+  - `Delete` / `Backspace`: Move selected item(s) to Trash (with 6s Undo toast).
+  - `Ctrl/⌘ + K`: Open Command Palette (`cmdk`).
+  - `?`: Open keyboard shortcuts cheat sheet.
+
+---
+
+## 6. Route & Screen Specifications
+
+### 1. Landing Page (`#/`)
+- Sticky 3-zone header with **responsive mobile hamburger menu toggle** and backdrop-blurred navigation drawer (Capabilities, Architecture, Pricing Estimator, Sign In).
+- Hero section with a static non-interactive explorer preview.
+- 6-card bento grid highlighting multi-cloud unification, keyboard speed, and zero egress.
+- Architecture workflow diagram explaining client-side storage isolation.
+- Embedded interactive Pricing Estimator.
+- Primary CTA: *"Launch demo workspace"* (initializes seeded demo account `alex.rivera@televault.demo` on the Pro tier).
+
+### 2. Authentication Page (`#/auth`)
+- Tabs: *Sign In*, *Create Account*, *Reset Password*, and *Instant Demo*.
+- WebCrypto PBKDF2-SHA256 client-side hashing (16-byte random salt, 600,000 iterations). Plaintext passwords are never stored.
+- Explicit notice: *"Local demo account — credentials remain in this browser only."*
+
+### 3. Dashboard Overview (`#/app/overview`)
+- KPI summary cards: Total Managed Storage vs. Plan Limit, Connected Cloud Mounts, Monthly Egress, Zero-Egress Savings ($ USD).
+- Storage mount health list with real-time capacity progress bars and latency meters.
+- 10 newest files list and pinned (starred) folders.
+- OS Drag-and-drop file upload zone.
+
+### 4. File Explorer (`#/app/files/:folderId?`, `#/app/starred`, `#/app/trash`)
+- View modes: Virtualized 40px table rows (`@tanstack/react-virtual`) and Drive-style card grid.
+- Category filter chips: *All*, *Images*, *Documents*, *Audio*, *Video*, *Code*, *Archives*, *Other*.
+- Storage mount filter dropdown.
+- Batch actions toolbar: *Move*, *Transfer to Mount*, *Star*, *Download*, *Trash*.
+- Breadcrumbs with automatic middle-truncation beyond 4 levels.
+- 320px slide-over File Inspector and modal preview supporting images, videos, audio, plain text, Markdown (`react-markdown`), JSON, CSV, syntax-highlighted code, and PDF `<object>`.
+
+### 5. Storage Provider Mounts (`#/app/providers`)
+- Active cloud accounts vs. plan cap indicator (e.g. `1 / 2 connected on FREE plan`).
+- Mount cards with status badge, endpoint, bucket, capacity usage, latency, and simulated tags.
+- Actions: *Test Connection* (1.5s simulated 3-step handshake), *Edit Capacity*, *Disconnect/Reconnect*, *Remove Mount*.
+- **Add Provider Mount Modal**:
+  - Real-time search filter across all 21 cloud providers.
+  - Category tabs: *Consumer & Personal Cloud*, *Object & Infrastructure Cloud*, *Self-Hosted & Protocol*.
+  - Strict input validation:
+    - S3: 3–63 chars, lowercase, digits, dots, hyphens.
+    - Cloudflare R2: Account ID (4–40 chars) and bucket name (no dots).
+    - Google Cloud Storage: Project ID and bucket name (dots, hyphens, underscores).
+    - WebDAV / Nextcloud / Hetzner: Valid HTTP/HTTPS endpoint URL.
+
+### 6. Analytics (`#/app/analytics`)
+- Recharts capacity donut/bar charts by file category and by cloud provider.
+- 7-Day vs. 30-Day ingress/egress area chart combining seeded history with live activity events.
+- Zero-egress financial savings calculation benchmarked against AWS S3 standard egress rates ($0.09/GB).
+
+### 7. Subscription & Pricing (`#/app/pricing`)
+- Tier Cards:
+  - **FREE**: ₹0 (2 cloud mounts, 5 GB/day transfer, 25 GB/month cross-cloud transfer, 3 files/batch).
+  - **PRO**: ₹199/month or ₹159/month annual (7 cloud mounts, 50 GB/day transfer, 500 GB/month cross-cloud, 25 files/batch, automated file organization).
+  - **ULTRA**: ₹499/month or ₹399/month annual (20 cloud mounts, 250 GB/day transfer, 2,500 GB/month cross-cloud, 100 files/batch, cross-cloud sync).
+- Interactive Sliders: Estimate optimal plan based on required clouds and daily gigabytes.
+- Plan downgrade safety check: Prevents switching to a lower tier if connected accounts exceed the target limit.
+
+### 8. Settings & Developer Controls (`#/app/settings`)
+- Profile display name management.
+- Demo API tokens: Generation, revocation, and robust clipboard copying with fallback (`document.execCommand`) and a 2-second green checkmark confirmation.
+- Browser storage diagnostics: `navigator.storage.estimate()` and `navigator.storage.persisted()`.
+- Developer Simulation Panel: Transient failure rate (0%, 10%, 50%) and simulated offline mode toggle.
+- Dangerous Actions: Reset to sample workspace and sign out.
+
+### 9. Transfer Tray Component (Persistent on all `/app` routes)
+- Floating bottom-right panel displaying active transfer count and aggregate bandwidth (`MB/s`).
+- Animated progress bar via `transform: scaleX(progress)`.
+- Per-task controls: Pause, Resume, Retry, Cancel.
+- Dismiss failed uploads (`X` button) and "Clear finished" global button.
+
+---
+
+## 7. Deterministic Seeding Specification (`mulberry32`, Seed 42)
+
+On initial startup, seed the workspace deterministically:
+- **Mounts**: `local-vault` (Built-in IndexedDB, 20 GB), `s3-prod` (AWS S3, 500 GB), `r2-edge` (Cloudflare R2, 1,000 GB, Zero Egress), `gcs-archive` (GCS, 2,000 GB), `webdav-nas` (WebDAV, 4,000 GB).
+- **Folders**: 3-level folder hierarchy (`Engineering/Releases`, `Engineering/Docs`, `Design/Brand`, `Finance/Invoices`, `Media/Audio`, `Archive/2024`).
+- **Files**: ~36 files total. ~24 files have real generated binary blobs (PNG test patterns drawn on canvas, 16-bit PCM WAV audio tones, Markdown docs, TypeScript code, JSON configuration, CSV tables). ~12 files are quota placeholders (large videos, archives, CAD files) claiming 120–150 GB of storage.
+- **Activity**: 30 days of seeded ingress and egress activity logs.
+- **Account**: `alex.rivera@televault.demo` initialized on the **PRO** plan.
+
+---
+
+## 8. Verification & Automated Test Suites
+
+The application must include Vitest unit and integration test suites:
+
+1. **`src/__tests__/format.test.ts`**: Verifies SI byte formatters (`formatBytes`), transfer speeds (`formatSpeed`), ETA calculators (`formatEta`), and relative timestamps.
+2. **`src/__tests__/pricing.test.ts`**: Verifies plan normalization, monthly vs. annual pricing math, quota calculations, downgrade restrictions, and recommendation logic.
+3. **`src/__tests__/orchestrator.test.ts`**: Verifies filename validation (`validateNodeName`), unique sibling deduplication (`resolveUniqueSiblingName`), trash cascade logic (`isEffectivelyTrashed`), and cycle-safe subtree collection (`collectSubtreeIds`).
+4. **`src/__tests__/providers.test.ts`**: Verifies S3, R2, and GCS bucket name regex rules and WebDAV endpoint URL parsing.
+5. **`src/__tests__/crypto.test.ts`**: Verifies 16-byte hex salt generation, deterministic PBKDF2-SHA256 password hashing, and SHA-256 chunk digests.
+
+### Verification Commands
+```bash
+npm run lint   # tsc --noEmit (must pass with 0 errors)
+npm test       # vitest run (all 58 tests must pass)
+npm run build  # vite build (must build in < 1.5s with zero chunk size warnings)
 ```
-
-- This mirrors the S3 multipart API, so pause, resume and a real backend later need no UI change. `source` exists only for the simulation: simulated adapters buffer nothing and commit `source` to the `blobs` store in `completeMultipartUpload` (say so in a comment).
-- Part sizes: s3 and r2 8 MiB (the real minimum is 5 MiB except the last part), gcs 8 MiB (a multiple of 256 KiB), webdav 4 MiB, local 1 MiB.
-- `IndexedDBStorageAdapter` (kind `local`) is real and fails only on quota. `S3Adapter`, `R2Adapter`, `GCSAdapter` and `WebDAVAdapter` extend a shared `SimulatedCloudAdapter` with per-kind latency (s3 80, r2 60, gcs 100, webdav 140 ms, ±30% jitter) and bandwidth (s3 12–30, r2 15–35, gcs 10–25, webdav 4–12 MB/s).
-- Settings → Developer panel: failure rate (0 / 10 / 50 %) and an Offline toggle for simulated adapters, so error states can be tested. Offline throws NETWORK (retryable); a disconnected mount throws DISCONNECTED (not retryable).
-- Orchestrator methods: `listChildren`, `createFolder`, `rename`, `move`, `trash`, `restore`, `purge`, `emptyTrash`, `toggleStar`, `startUpload`, `downloadFile`, `getObjectUrl`, `testMount`, `addMount`, `updateMount`, `disconnectMount`, `reconnectMount`, `removeMount`, `resetWorkspace`.
-
-File-operation rules:
-
-- **Names:** trimmed, 1–255 chars, no `/`, unique among siblings (case-insensitive). Rename and New Folder show an inline error on collision; upload, move and restore auto-suffix `  (1) `, `  (2) `.
-- **Move:** target must be a non-trashed folder and not the item itself or one of its descendants.
-- **Trash:** sets `trashedAt` and `trashedFromParentId` on that node only, with a 6 s Undo toast. The Trash view lists nodes that have `trashedAt`. **Restore** goes to the original parent if it still exists and is not trashed, otherwise to root. **Delete forever** and **Empty trash** ask for confirmation and call `deleteObject` for every file removed.
-- **Disconnected mount:** its files stay visible but dimmed with a “Disconnected” badge; preview, download and uploads to it are disabled with a tooltip. Reconnect reruns the handshake. **Remove mount** confirms, states how many files will be deleted, then deletes them.
-- **Placeholder files** (`hasBlob: false`) show an info state, no preview and a disabled Download.
-
-## 5. Upload engine
-
-- Entry points: Upload button, OS drag-and-drop (only when `dataTransfer.types` includes `Files`; dropped folders are ignored with a toast), and the Overview drop zone.
-- **Configurator modal:** file list; target folder picker (defaults to the current folder); provider select showing connected mounts only, with free space (`allocatedBytes − used`), disabling a mount the file would not fit in. Max 200 MB per file; larger files are rejected in the list with a reason.
-- Concurrency 3; extra jobs wait as `queued`.
-- Per job: `createMultipartUpload`, then `uploadPart` for each part in order, then `completeMultipartUpload`. Every part, including the only part of a small file, reports progress ticks every 100 ms so the bar moves smoothly. Retry a failed retryable part up to 3 times with 500 ms · 2ⁿ backoff, then set `error` with a Retry button that resumes at the first incomplete part.
-- **Pause** aborts the in-flight part; **Resume** restarts at the first incomplete part, so progress may step back slightly (as real multipart does). **Cancel** calls `abortMultipartUpload` and leaves no node behind. Allowed transitions: queued→uploading, uploading⇄paused, uploading→completed | error | cancelled, queued | paused→cancelled, error→queued.
-- **Speed** = bytes completed over a 3 s sliding window, shown in `MB/s`. **ETA** = remaining ÷ speed, “—” when speed is 0.
-- On completion: create the `FileNode` (collision-safe name); compute SHA-256 with `crypto.subtle.digest` for files ≤ 64 MB, otherwise store `null` and show “Not computed”; generate a 320 px PNG thumbnail for images; record ingress activity.
-- After a page reload, any non-completed job becomes a failed job: “Interrupted by reload — upload again”.
-- **Transfer tray:** bottom-right, collapsible, on every `/app` route. Header: active count and aggregate speed. Row: name, provider, part x/y, progress bar (animate with `transform: scaleX`), speed, ETA, Pause / Resume / Cancel / Retry. “Clear completed” button. `aria-live=polite`, announcing only completed and failed, never percentages.
-
-## 6. File explorer
-
-- **Views:** Linear-style table (40 px rows; Name, Provider, Size, Modified, Star) and a Drive-style card grid; remember the choice. The table is virtualised. Folders sort first; click a header to sort (`aria-sort`).
-- **Filters:** category chips (All, Images, Documents, Audio, Video, Code, Archives, Other) and a provider select.
-- **Selection:** click, Shift-click range, Ctrl/⌘-click toggle, Esc clears. A batch toolbar offers Move, Star, Download, Trash. Multi-file download runs one file at a time (no zip).
-- **Keyboard:** ↑/↓ or J/K move; Enter opens (folder navigates, file opens inspector); Space toggles preview; Ctrl/⌘+A select all; F2 rename; S star; Delete/Backspace trash; `/` focuses search; `?` shows a shortcuts sheet; Ctrl/⌘+K opens the command palette. Show ⌘ on Apple platforms and Ctrl elsewhere.
-- **Context menu** (right-click): Open, Preview, Rename, Star, Move to…, Download, Move to Trash.
-- **Sidebar tree** (`role=tree`, arrow keys expand/collapse) and a breadcrumb that collapses its middle segments beyond 4.
-- **Inspector** (320 px) and preview modal show name, type, size, provider, path, dates, SHA-256 and actions. Previews: image, audio and video via object URLs; text, Markdown, JSON, CSV and code read as text up to 1 MB (Markdown through `react-markdown` without raw HTML; code in a monospace block with line numbers); PDF via `<object>`; HTML files shown as plain text, never rendered; SVG only through `<img>`; anything else gets an icon and Download. Create object URLs on open and revoke them on close.
-- **Grid thumbnails:** stored thumbnail for images, file-type icon otherwise.
-- Internal drag-to-move (rows onto folders or tree nodes) is optional; skip it if space is tight.
-- Every list has loading (skeleton, 300 ms minimum on navigation), empty and error states.
-
-## 7. Other screens
-
-- **Landing:** sticky nav; hero with a static, non-interactive explorer preview; six-card bento grid; “How it works” adapter-layer diagram including the prototype note; pricing estimator (reuse §8 component); footer. CTAs: “Launch demo workspace” (creates or reuses the demo account and enters the app) and “Sign in”.
-- **Auth:** Sign in, Create account, Reset password, Instant demo. Local demo accounts only: password stored as a PBKDF2-SHA256 hash (600,000 iterations, random 16-byte salt) via WebCrypto, with the text “Local demo account — not a real login”. Reset password checks the email exists locally and lets the user set a new password; no email is sent, and the screen says so.
-- **Overview:** KPI cards (managed storage used / plan limit, connected mounts, egress this month, estimated monthly egress savings); mount list with usage bars, status badge and latency; 10 newest files; pinned folders (= starred folders); active-transfer summary; drop zone.
-- **Providers:** a card per mount (kind, bucket or endpoint, region, status badge with text, used/allocated, latency, Simulated tag) with Test connection, Edit, Disconnect/Reconnect, Remove. **Add mount** form per kind: s3 (region, bucket), r2 (account ID → endpoint `https://<accountId>.r2.cloudflarestorage.com`, bucket), gcs (project ID, bucket, location), webdav (URL, base path), plus name and allocated capacity in GB. **Do not collect secret keys or passwords.** Bucket names: s3 3–63 lowercase letters, digits, dots, hyphens; r2 3–63 lowercase letters, digits, hyphens; gcs 3–63 lowercase letters, digits, dots, hyphens, underscores; all must start and end with a letter or digit. WebDAV URL must be a valid http(s) URL. The handshake shows steps (“Resolving endpoint…”, “Authenticating (simulated)…”, “Checking permissions…”) over about 1.5 s and records latency.
-- **Analytics:** capacity by file type and by provider (computed from real nodes); ingress/egress area chart with 7 D / 30 D toggle built from seeded sample history plus real activity events, labelled “Includes sample history”; zero-egress savings card.
-- **Settings:** profile, demo API tokens (generate random, copy, revoke; labelled demo), storage status (`navigator.storage.estimate()`, persisted yes/no), Developer panel, Reset workspace, Sign out.
-- **Command palette (`cmdk`):** files and folders (fuzzy name match, max 8), mounts, pages, actions (Upload files, New folder, Toggle view). Esc closes, Enter runs, focus returns to the previous element.
-
-## 8. Pricing (illustrative demo numbers in `pricing.ts`)
-
-|  | Starter | Pro Vault | Enterprise Mesh |
-| --- | --- | --- | --- |
-| Base / month | $0 | $19 | $79 |
-| Included managed storage | 50 GB | 2 TB | 20 TB |
-| Included egress / month | 100 GB | 1 TB | 10 TB |
-| Mounts | 2 | 10 | Unlimited |
-| Seats | 1 | 3 | 10 |
-
-- Annual billing = 20 % off the base price.
-- Paid plans: `cost = base + max(0, storageGB − includedStorage) × 0.015 + max(0, egressGB − includedEgress) × 0.03`. Starter is hard-capped; the estimator shows “Upgrade required” past its limits.
-- Estimator: two sliders (storage 0–50 TB, egress 0–20 TB) show the cost on every plan and highlight the cheapest plan that fits.
-- Switching plans updates limits instantly, adds a demo invoice and shows a toast. A downgrade the workspace already exceeds (used storage or mount count) is blocked with a message saying why. The demo account starts on Pro Vault, monthly.
-- Egress savings = this month’s egress on zero-egress mounts × the S3 rate. Keep USD/GB rates in `pricing.ts` (s3 0.09, gcs 0.12, r2 0, webdav 0, local 0) with a comment that they are illustrative and must be verified before real use.
-
-## 9. Design system
-
-- Dark only, `color-scheme: dark`. Tokens as CSS variables, mapped in Tailwind.
-- **Canvas** `#090A0F` app, `#0E1017` workspace. **Surface** `#131620`. **Hairline** `#1E2230` and `rgba(255,255,255,.07)`. **Text** `#F3F4F6`, muted `#8A94A6`.
-- **Accent:** filled buttons `#4F46E5` with white text (about 6:1; plain `#6366F1` is right at the 4.5:1 limit). Links, active states and the focus ring `#818CF8`. Focus ring is 2 px with a 2 px offset on every interactive element.
-- **Status, always with a text label:** Connected / Completed `#10B981`, Syncing / High usage `#F59E0B`, Disconnected / Failed `#F43F5E`.
-- **Type:** `DM Sans` for UI and headings (400/500/700; headings `-0.02em`, `text-wrap: balance`); `JetBrains Mono` with `tabular-nums` for byte counts, speeds, checksums and dates. Google Fonts with `display=swap` and real fallbacks. UI text 13–15 px.
-- **Layout:** 256 px collapsible sidebar; 3-zone top bar (breadcrumb · search and view toggle · Upload button); optional 320 px inspector. One elevation level: 1 px borders, no nested shadow cards. Metadata is inline text with middots; only filters and toggles look like buttons.
-- **Motion:** 150 ms, animate only `transform` and `opacity`; disable under `prefers-reduced-motion`.
-- **Formatters** in `lib/format.ts`: `formatBytes` (SI, one decimal), `formatSpeed`, `formatEta` (`12s`, `3m 20s`), dates relative within 7 days otherwise `Mon D, YYYY` with the full timestamp in a tooltip.
-
-## 10. Accessibility and responsive
-
-- Skip link; visible focus; roving tabindex in table and grid; `role=grid` with `aria-sort`; `role=tree` for folders; dialogs trap focus, close on Esc and return focus; toasts use `aria-live=polite`; icon-only buttons have labels; status is never color alone.
-- ≥ 1280 px full layout. 768–1279 px: 64 px icon-rail sidebar, inspector overlays. < 768 px: sidebar in a slide-over, table shows Name and Size only, grid has 2 columns, transfer tray is a bottom sheet. The landing page is responsive at every size.
-
-## 11. Seed data (deterministic: `mulberry32`, seed 42; no network)
-
-- Mounts: `local-vault` (local), `s3-prod`, `r2-edge`, `gcs-archive`, `webdav-nas`. All connected, with different capacities and latencies.
-- Folders (up to 3 levels): Engineering/{Releases, Backups, Docs}, Design/{Brand, Product Shots}, Finance/Invoices, Media/Audio, Archive/2024.
-- About 36 files spread across mounts: roughly 24 with **real generated content** (PNGs drawn on a canvas, valid 16-bit PCM mono WAV tones, Markdown, `.ts` / `.py` / `.sql` / `.json`, CSV, logs) and roughly 12 **placeholders** (zip, mp4, psd, parquet, pdf) with claimed sizes totalling about 120–150 GB. Real files get true `sizeBytes`, SHA-256 and thumbnails.
-- 30 days of sample ingress/egress activity and the demo account on Pro Vault.
-
-## 12. Build order
-
-1. **Foundation:** tokens, fonts, formatters, domain types, IndexedDB repository, seed, orchestrator skeleton.
-2. **Shell:** routing, auth, app layout, sidebar, top bar, palette skeleton.
-3. **Explorer:** table, grid, tree, breadcrumb, selection, keyboard, file operations, trash, inspector and previews.
-4. **Uploads:** adapters, upload engine, configurator, transfer tray.
-5. **Providers and Overview:** mount cards, add / edit / test / disconnect / remove, dashboard.
-6. **Analytics, Pricing, Settings.**
-7. **Landing page, palette polish, accessibility pass, responsive pass.**
-
-## 13. Acceptance checklist (verify before finishing)
-
-1. Reload keeps folders, uploaded files, renames, stars, trash state, mounts, plan and settings.
-2. A 5 MB image upload shows smooth progress, then a working preview and download after reload.
-3. Pause, resume, cancel and retry behave as in §5; cancel leaves no file.
-4. Two items with the same name never coexist in one folder.
-5. A folder cannot be moved into itself or its descendants.
-6. Trashing a folder hides its contents; restore brings everything back; delete forever frees mount usage.
-7. A disconnected mount dims its files and disables preview, download and uploads to it.
-8. Ctrl+K and ⌘K both open the palette; every shortcut in §6 works; focus is never lost or trapped.
-9. With failure rate 50 % and with Offline on, uploads show errors and Retry works.
-10. No file data in `localStorage`; no secrets collected anywhere.
-11. Placeholder files never show a broken preview or an enabled download.
-12. Used storage, quota meter, analytics and mount usage all agree.
-13. Plan switching updates limits and blocks invalid downgrades.
-14. The layout works at 1440, 1024 and 390 px with no horizontal page scroll.
-15. The prototype badge and Simulated tags are always visible.
