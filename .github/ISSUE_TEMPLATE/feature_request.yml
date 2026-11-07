@@ -1,0 +1,54 @@
+name: Feature Request
+description: Suggest a new feature for Brainrot Wars
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Describe what you'd like to see.
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: What should be added/changed?
+      placeholder: Detailed description...
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Gameplay/Combat
+        - Enemy AI
+        - World/Level Design
+        - UI/UX
+        - Dimension System
+        - Procedural Generation
+        - Performance/Optimization
+        - Audio/Visual
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is this needed? What problem does it solve?
+    validations:
+      required: true
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Ideas
+      description: Any thoughts on how to implement?
+      placeholder: C++ class changes, Blueprint assets, config tweaks...
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I've checked the roadmap/README
+        - label: This fits the game's vision
+        - label: I'm willing to help implement

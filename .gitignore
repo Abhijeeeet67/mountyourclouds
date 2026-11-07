@@ -1,0 +1,139 @@
+# Unreal Engine
+/Build/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+/Binaries/
+/Plugins/*/Binaries/
+/Plugins/*/Intermediate/
+/Plugins/*/DerivedDataCache/
+/Plugins/*/Saved/
+
+# Visual Studio
+/.vs/
+*.sln
+*.vcxproj*
+*.vcproj
+*.opensdf
+*.sdf
+*.suo
+*.user
+*.aps
+*.pch
+*.vspscc
+*.vssscc
+*_i.c
+*_p.c
+*.ncb
+*.tlb
+*.tlh
+*.bak
+*.cache
+*.ilk
+*.log
+*.lib
+*.sbr
+*.obj
+*.idb
+*.pdb
+*.ipch
+
+# Rider
+/.idea/
+*.sln.iml
+
+# VS Code
+/.vscode/
+*.code-workspace
+
+# Mac
+.DS_Store
+
+# Linux
+*.o
+*.a
+*.so
+
+# Unreal specific
+*.uproject
+!MultiverseHopper.uproject
+/Config/*.local.ini
+/Config/CrashReportClient.ini
+/Content/StarterContent/
+/Content/Developers/
+/Content/Movies/
+/Source/*/ThirdParty/
+
+# Build artifacts
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.manifest
+*.res
+*.rc
+*.tlog
+*.lastbuildstate
+
+# Packaging
+/Pak/
+/*.pak
+/*.sig
+/*.ucas
+/*.utoc
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
+Logs/
+
+# Localization
+/Localization/*/Game/*.po
+/Localization/*/Game/*.manifest
+
+# Shader cache
+/ShaderCache/
+/Saved/ShaderCache/
+
+# Automation
+/AutomationTool/
+/Saved/AutomationTool/
+
+# Crash reports
+/Crashes/
+/Saved/Crashes/
+
+# Profiling
+/Profiling/
+/Saved/Profiling/
+
+# Stats
+/Stats/
+/Saved/Stats/
+
+# Screenshots
+/Screenshots/
+/Saved/Screenshots/
+
+# Video capture
+/VideoCaptures/
+/Saved/VideoCaptures/

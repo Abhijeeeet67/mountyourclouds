@@ -1,0 +1,44 @@
+# Brainrot Wars - Code Owners
+# These users will be automatically requested for review on PRs touching these files
+
+# Core gameplay systems
+/Source/MultiverseHopper/Private/Character/ @abhijeet
+/Source/MultiverseHopper/Public/Character/ @abhijeet
+
+# Combat & Weapons
+/Source/MultiverseHopper/Private/Weapons/ @abhijeet
+/Source/MultiverseHopper/Public/Weapons/ @abhijeet
+
+# Enemy AI
+/Source/MultiverseHopper/Private/Enemy/ @abhijeet
+/Source/MultiverseHopper/Public/Enemy/ @abhijeet
+
+# Game Mode & Mission
+/Source/MultiverseHopper/Private/Gameplay/ @abhijeet
+/Source/MultiverseHopper/Public/Gameplay/ @abhijeet
+
+# UI System
+/Source/MultiverseHopper/Private/UI/ @abhijeet
+/Source/MultiverseHopper/Public/UI/ @abhijeet
+
+# Dimension & Procedural Systems
+/Source/MultiverseHopper/Private/Systems/ @abhijeet
+/Source/MultiverseHopper/Public/Systems/ @abhijeet
+
+# Editor Tools
+/Source/MultiverseHopper/Private/Editor/ @abhijeet
+/Source/MultiverseHopper/Public/Editor/ @abhijeet
+
+# Configuration
+/Config/ @abhijeet
+
+# Build & CI
+/MultiverseHopper.Build.cs @abhijeet
+/.github/workflows/ @abhijeet
+/BUILD_*.bat @abhijeet
+/BUILD_*.sh @abhijeet
+/PACKAGE_*.bat @abhijeet
+/PACKAGE_*.sh @abhijeet
+
+# Documentation
+/README.md @abhijeet

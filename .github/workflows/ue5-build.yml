@@ -1,0 +1,126 @@
+name: UE5 Build & Test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  UE_VERSION: "5.4"
+  PROJECT_NAME: "MultiverseHopper"
+  PROJECT_PATH: "${{ github.workspace }}/${{ env.PROJECT_NAME }}.uproject"
+
+jobs:
+  build-windows:
+    name: Build Windows (Shipping)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          submodules: recursive
+
+      - name: Setup Unreal Engine
+        uses: fork-and-extension/setup-unreal-engine@v1
+        with:
+          version: ${{ env.UE_VERSION }}
+          token: ${{ secrets.EPIC_GAMES_TOKEN }}
+          cache-key: ue-${{ env.UE_VERSION }}-${{ runner.os }}
+
+      - name: Generate Project Files
+        run: |
+          & "${{ env.UE_ROOT }}/Engine/Build/BatchFiles/GenerateProjectFiles.bat" "${{ env.PROJECT_PATH }}" -2022
+
+      - name: Build Editor (Development)
+        run: |
+          & "${{ env.UE_ROOT }}/Engine/Build/BatchFiles/Build.bat" ${{ env.PROJECT_NAME }}Editor Win64 Development "${{ env.PROJECT_PATH }}" -WaitMutex -FromMsBuild
+
+      - name: Build Game (Shipping)
+        run: |
+          & "${{ env.UE_ROOT }}/Engine/Build/BatchFiles/Build.bat" ${{ env.PROJECT_NAME }} Win64 Shipping "${{ env.PROJECT_PATH }}" -WaitMutex -FromMsBuild
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MultiverseHopper-Win64-Shipping
+          path: |
+            ${{ github.workspace }}/Binaries/Win64/**
+            !**/*.pdb
+          retention-days: 7
+
+  build-linux:
+    name: Build Linux (Editor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: unrealengine/ue5-minimal:5.4
+      options: --user root --shm-size=4g
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y \
+            clang-15 lld-15 libc++-15-dev libc++abi-15-dev \
+            libssl-dev libpulse-dev libx11-dev libxext-dev \
+            libxi-dev libxrandr-dev libxrender-dev libxtst-dev \
+            libgl1-mesa-dev libglu1-mesa-dev
+
+      - name: Generate Project Files
+        run: |
+          cd /opt/unrealengine/Engine/Build/BatchFiles/Linux
+          ./GenerateProjectFiles.sh "${{ env.PROJECT_PATH }}"
+
+      - name: Build Editor (Development)
+        run: |
+          cd /opt/unrealengine/Engine/Build/BatchFiles/Linux
+          ./Build.sh ${{ env.PROJECT_NAME }}Editor Linux Development "${{ env.PROJECT_PATH }}" -WaitMutex
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MultiverseHopper-Linux-Editor
+          path: |
+            ${{ github.workspace }}/Binaries/Linux/**
+          retention-days: 7
+
+  lint:
+    name: Code Quality (clang-tidy)
+    runs-on: ubuntu-latest
+    container:
+      image: unrealengine/ue5-minimal:5.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run clang-tidy on Public headers
+        run: |
+          find Source -name "*.h" -exec clang-tidy-15 {} -- -I/opt/unrealengine/Engine/Source \;
+
+  test-compile:
+    name: Test Compile (Fast)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fork-and-extension/setup-unreal-engine@v1
+        with:
+          version: ${{ env.UE_VERSION }}
+          token: ${{ secrets.EPIC_GAMES_TOKEN }}
+      - name: Quick Compile Check
+        run: |
+          & "${{ env.UE_ROOT }}/Engine/Build/BatchFiles/Build.bat" ${{ env.PROJECT_NAME }} Win64 Development "${{ env.PROJECT_PATH }}" -WaitMutex -FromMsBuild -NoHotReload
