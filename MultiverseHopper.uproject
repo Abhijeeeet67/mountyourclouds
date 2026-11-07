@@ -1,0 +1,114 @@
+{
+    "FileVersion": 3,
+    "EngineAssociation": "5.3",
+    "Category": "",
+    "Description": "Brainrot Wars: The Last Heartbeat - AAA Third-Person Action-Adventure Prototype",
+    "Modules": [
+        {
+            "Name": "MultiverseHopper",
+            "Type": "Runtime",
+            "LoadingPhase": "Default",
+            "AdditionalDependencies": [
+                "Engine",
+                "CoreUObject",
+                "Core",
+                "InputCore",
+                "EnhancedInput",
+                "GameplayAbilities",
+                "GameplayTags",
+                "GameplayTasks",
+                "Niagara",
+                "UMG",
+                "Slate",
+                "SlateCore",
+                "PhysicsCore",
+                "Chaos",
+                "ChaosVehicles",
+                "ChaosCloth",
+                "GeometryCollectionEngine",
+                "FieldSystemEngine",
+                "AudioMixer",
+                "Synthesis",
+                "MediaAssets",
+                "MoviePlayer",
+                "CinematicCamera",
+                "LevelSequence",
+                "MovieScene",
+                "MovieSceneTracks",
+                "MovieSceneCapture",
+                "ImageWriteQueue",
+                "RenderCore",
+                "RHI",
+                "ShaderCore",
+                "Projects",
+                "AIModule",
+                "NavigationSystem",
+                "GameplayTasks"
+            ]
+        }
+    ],
+    "Plugins": [
+        {
+            "Name": "EnhancedInput",
+            "Enabled": true
+        },
+        {
+            "Name": "GameplayAbilities",
+            "Enabled": true
+        },
+        {
+            "Name": "Niagara",
+            "Enabled": true
+        },
+        {
+            "Name": "ChaosCloth",
+            "Enabled": true
+        },
+        {
+            "Name": "ChaosVehicles",
+            "Enabled": true
+        },
+        {
+            "Name": "GeometryCollection",
+            "Enabled": true
+        },
+        {
+            "Name": "FieldSystemEngine",
+            "Enabled": true
+        },
+        {
+            "Name": "MoviePlayer",
+            "Enabled": true
+        },
+        {
+            "Name": "CinematicCamera",
+            "Enabled": true
+        },
+        {
+            "Name": "LevelSequence",
+            "Enabled": true
+        },
+        {
+            "Name": "MovieSceneCapture",
+            "Enabled": true
+        },
+        {
+            "Name": "ImageWriteQueue",
+            "Enabled": true
+        }
+    ],
+    "TargetPlatforms": [
+        "Windows",
+        "Mac",
+        "Linux"
+    ],
+    "AdditionalProperties": {
+        "ProjectName": "Brainrot Wars: The Last Heartbeat",
+        "ProjectVersion": "1.0.0",
+        "CompanyName": "Origin Kingdom Studios",
+        "CopyrightNotice": "Copyright 2024 Origin Kingdom Studios. All Rights Reserved.",
+        "ProjectDisplayedTitle": "Brainrot Wars: The Last Heartbeat",
+        "ProjectDebugTitleInfo": "Brainrot Wars (Debug)",
+        "Description": "AAA Third-Person Action-Adventure in the Origin Kingdom"
+    }
+}
